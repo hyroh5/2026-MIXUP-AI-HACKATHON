@@ -17,7 +17,7 @@ _MAX_FORECAST_DAYS = 16
 _MAX_SEASONAL_DAYS = 270
 
 
-def get_weather(city: str, date_str: str) -> WeatherResult | None:
+def get_weather(city: str, date_str: str, silent: bool = False) -> WeatherResult | None:
     """도시명과 날짜를 받아 날씨 정보를 출력하고 WeatherResult를 반환한다.
 
     날짜 범위에 따라 적절한 API를 자동으로 선택한다:
@@ -42,12 +42,14 @@ def get_weather(city: str, date_str: str) -> WeatherResult | None:
     delta = (target - today).days
 
     lat, lon, name, country, tz = get_coordinates(city)
-    print(f"\n검색 위치: {name}, {country}")
-    print(f"좌표:      위도 {lat:.4f}, 경도 {lon:.4f}")
-    print(f"요청 날짜: {target}  (오늘 기준 {delta:+d}일)")
+    if not silent:
+        print(f"\n검색 위치: {name}, {country}")
+        print(f"좌표:      위도 {lat:.4f}, 경도 {lon:.4f}")
+        print(f"요청 날짜: {target}  (오늘 기준 {delta:+d}일)")
 
     if delta > _MAX_SEASONAL_DAYS:
-        print(f"\n{_MAX_SEASONAL_DAYS}일(약 9개월) 초과는 지원되지 않습니다.")
+        if not silent:
+            print(f"\n{_MAX_SEASONAL_DAYS}일(약 9개월) 초과는 지원되지 않습니다.")
         return None
 
     if delta < 0:
@@ -61,7 +63,8 @@ def get_weather(city: str, date_str: str) -> WeatherResult | None:
         source = f"시즌 예보 앙상블 평균 (D+{delta})"
 
     daily = DailyWeather.from_api_response(raw["daily"], target.isoformat())
-    print_daily(daily, source)
+    if not silent:
+        print_daily(daily, source)
 
     return WeatherResult(
         city=name,

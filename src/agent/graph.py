@@ -138,7 +138,7 @@ def build_graph(model: str = "solar-pro3", temperature: float = 0.7):
         candidates = []
         for flight in flights[:10]:
             try:
-                w = get_weather(dest, flight.date)
+                w = get_weather(dest, flight.date, silent=True)
             except Exception:
                 w = None
 
@@ -196,7 +196,7 @@ def build_graph(model: str = "solar-pro3", temperature: float = 0.7):
         for offset in range(1, 14, 3):
             check_date = (today + timedelta(days=offset)).isoformat()
             try:
-                w = get_weather(dest, check_date)
+                w = get_weather(dest, check_date, silent=True)
             except Exception:
                 continue
             if not w or not w.daily:
@@ -236,7 +236,7 @@ def build_graph(model: str = "solar-pro3", temperature: float = 0.7):
     def weather_node(state: AgentState) -> dict:
         intent = state["intent"]
         try:
-            result = get_weather(intent["destination"], intent["check_in"])
+            result = get_weather(intent["destination"], intent["check_in"], silent=True)
             if result is None or result.daily is None:
                 return {"is_rainy": False, "weather_summary": "날씨 정보 없음"}
             d = result.daily
@@ -302,28 +302,57 @@ def build_graph(model: str = "solar-pro3", temperature: float = 0.7):
 
     # ── Node 5: Place ──────────────────────────────────────────────────
     def place_node(state: AgentState) -> dict:
+        """국내 → Naver Local API / 해외 → Google Places API 자동 분기."""
         intent = state["intent"]
         dest = intent["destination"]
         is_rainy = state.get("is_rainy", False)
 
-        restaurant_query = f"{dest} 맛집"
-        attraction_query = f"{dest} 카페 박물관" if is_rainy else f"{dest} 명소 관광지"
+        iata = get_iata(dest)
+        domestic = iata_is_domestic(iata) if iata else False
 
-        def _to_dict_list(places):
-            return [
-                {"title": p.title, "address": p.road_address or p.address, "category": p.category}
-                for p in places[:2]
-            ]
+        if domestic:
+            # ── 국내: Naver Local ──────────────────────────────────────
+            r_query = f"{dest} 맛집"
+            a_query = f"{dest} 카페 박물관" if is_rainy else f"{dest} 명소 관광지"
 
-        try:
-            restaurants = _to_dict_list(search_local(restaurant_query, display=2))
-        except Exception:
-            restaurants = _MOCK_RESTAURANTS
+            def _naver(places):
+                return [
+                    {"title": p.title, "address": p.road_address or p.address, "category": p.category}
+                    for p in places[:2]
+                ]
 
-        try:
-            attractions = _to_dict_list(search_local(attraction_query, display=2))
-        except Exception:
-            attractions = _MOCK_ATTRACTIONS
+            try:
+                restaurants = _naver(search_local(r_query, display=2))
+            except Exception:
+                restaurants = _MOCK_RESTAURANTS
+
+            try:
+                attractions = _naver(search_local(a_query, display=2))
+            except Exception:
+                attractions = _MOCK_ATTRACTIONS
+
+        else:
+            # ── 해외: Google Places ────────────────────────────────────
+            from src.tourist.google_places import search_places
+
+            r_query = f"{dest} best restaurants"
+            a_query = f"{dest} indoor museum cafe" if is_rainy else f"{dest} tourist attractions"
+
+            def _google(places):
+                return [
+                    {"title": p.name, "address": p.address, "category": ""}
+                    for p in places[:2]
+                ]
+
+            try:
+                restaurants = _google(search_places(r_query))
+            except Exception:
+                restaurants = []
+
+            try:
+                attractions = _google(search_places(a_query))
+            except Exception:
+                attractions = []
 
         return {"restaurants": restaurants, "attractions": attractions}
 
