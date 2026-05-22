@@ -136,6 +136,13 @@ async def resume_plan(req: ResumeRequest) -> StartPlanResponse:
                 question=interrupt_val.get("question", ""),
                 candidates=interrupt_val.get("candidates", []),
             )
+        if interrupt_type == "hotel_prefs":
+            return StartPlanResponse(
+                thread_id=req.thread_id,
+                phase="hotel_prefs",
+                question=interrupt_val.get("question", ""),
+                schema=interrupt_val.get("schema", []),
+            )
 
     return StartPlanResponse(
         thread_id=req.thread_id,

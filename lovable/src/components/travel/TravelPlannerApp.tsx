@@ -253,12 +253,14 @@ export default function TravelPlannerApp() {
     try {
       const res = await resumePlan(threadId, choice);
 
-      // budget → place → routing → synth 애니메이션
+      // budget → place → routing → synth 순차 애니메이션 후 결과 표시
       setTimeout(() => setPipelineStatus((s) => ({ ...s, budget: "완료", place: "진행중" })), 800);
       setTimeout(() => setPipelineStatus((s) => ({ ...s, place: "완료", routing: "진행중" })), 2000);
       setTimeout(() => setPipelineStatus((s) => ({ ...s, routing: "완료", synth: "진행중" })), 3200);
-
-      handlePlanResult(res.thread_id, res.phase, res.candidates, res.result, res.schema);
+      // 마지막 애니메이션(3200ms) 이후에 호출해야 단계별 진행 표시가 정상 동작
+      setTimeout(() => {
+        handlePlanResult(res.thread_id, res.phase, res.candidates, res.result, res.schema);
+      }, 3800);
     } catch (e) {
       setError(e instanceof Error ? e.message : "API 오류가 발생했습니다.");
       setPhase("done");
