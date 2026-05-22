@@ -224,6 +224,21 @@ CITY_TO_IATA: dict[str, str] = {
 }
 
 
+# 네이버 항공권 API는 일부 도시(오사카·도쿄 등)에 대해 공항 IATA 코드 대신
+# 도시 코드(city type)를 사용해야 결과를 반환한다.
+# 값: (naver_code, location_type)
+AIRPORT_TO_NAVER: dict[str, tuple[str, str]] = {
+    "KIX": ("OSA", "city"),   # 오사카 간사이
+    "ITM": ("OSA", "city"),   # 오사카 이타미
+    "NRT": ("TYO", "city"),   # 도쿄 나리타
+    "HND": ("TYO", "city"),   # 도쿄 하네다
+    "NGO": ("NGO", "city"),   # 나고야
+    "CTS": ("CTS", "city"),   # 삿포로
+    "FUK": ("FUK", "city"),   # 후쿠오카
+    "OKA": ("OKA", "city"),   # 오키나와
+}
+
+
 def get_iata(city: str) -> str | None:
     """도시명(한글)으로 IATA 코드를 반환한다. 없으면 None."""
     return CITY_TO_IATA.get(city)

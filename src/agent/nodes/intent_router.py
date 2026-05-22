@@ -25,12 +25,14 @@ def make_intent_router(llm):
             "- 날짜가 전혀 없거나 '미정'이면 date_fixed=false, target_months=[].\n"
             "- date_fixed=false면 check_in='', check_out='' 로 설정.\n"
             "- 숙박 기간이 언급되면 trip_nights에 설정 (예: '3박4일' → 3, '2박' → 2). 없으면 2.\n"
-            "- 예산 단위가 '만원'이면 10000 곱해 정수로 변환.\n"
+            "- 예산은 원화(KRW) 정수로 변환. 예: '100만원'→1000000, '150만원'→1500000, "
+            "'50만원'→500000, '300만원'→3000000, '1000만원'→10000000, '200만원'→2000000.\n"
             "- 인원 정보 없으면 adults=1.\n"
+            "- '직항', '경유 없이', '논스톱', '직항으로' 같은 표현이 있으면 prefer_nonstop=true. 없으면 false.\n"
             f"- 오늘 날짜: {today}\n\n"
             "반드시 아래 JSON 형식만 출력 (설명 없이):\n"
             '{"destination":"런던","date_fixed":false,"check_in":"","check_out":"",'
-            '"budget":3000000,"adults":1,"trip_nights":3,"target_months":["202607"]}'
+            '"budget":3000000,"adults":1,"trip_nights":3,"target_months":["202607"],"prefer_nonstop":false}'
         ))
 
         print("\n🧠 [1/5] 의도 분석 중...")
@@ -54,6 +56,8 @@ def make_intent_router(llm):
 
         target_months: list = data.get("target_months", [])
 
+        prefer_nonstop: bool = bool(data.get("prefer_nonstop", False))
+
         intent: TravelIntent = {
             "destination": data.get("destination", "서울"),
             "check_in": check_in,
@@ -62,6 +66,7 @@ def make_intent_router(llm):
             "adults": int(data.get("adults", 1)),
             "trip_nights": trip_nights,
             "target_months": target_months,
+            "prefer_nonstop": prefer_nonstop,
         }
         date_str = f"{check_in} ~ {check_out}" if date_fixed else "미정"
         print(f"  ✓ 목적지: {intent['destination']} | 날짜: {date_str} | 예산: {intent['budget']:,}원 | {trip_nights}박")

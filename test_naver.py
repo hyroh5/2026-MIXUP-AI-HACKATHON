@@ -70,15 +70,15 @@ try:
     data = r.json()
     rows = (data.get("data") or {}).get("minPricesByDate") or []
     if rows:
-        print(f"결과 {len(rows)}개 (5일 기준 필터 전)")
-        filtered = [x for x in rows if x.get("tripDays") == 5]
-        print(f"5일(4박5일) 결과: {len(filtered)}개")
-        for item in filtered[:5]:
+        from collections import Counter
+        trip_day_dist = Counter(x.get("tripDays") for x in rows)
+        print(f"결과 {len(rows)}개 — tripDays 분포: {dict(sorted(trip_day_dist.items()))}")
+        for item in rows[:5]:
             dep = item['departureDate']
-            ret = item['returnDate']
-            dep_iso = f"{dep[:4]}-{dep[4:6]}-{dep[6:]}"
-            ret_iso = f"{ret[:4]}-{ret[4:6]}-{ret[6:]}"
-            print(f"  {dep_iso} ~ {ret_iso} | {item['minPrice']:,}원 | 경유 {item['stops']}회")
+            ret = item.get('returnDate', '')
+            dep_iso = f"{dep[:4]}-{dep[4:6]}-{dep[6:]}" if len(dep) == 8 else dep
+            ret_iso = f"{ret[:4]}-{ret[4:6]}-{ret[6:]}" if len(ret) == 8 else ret
+            print(f"  {dep_iso} ~ {ret_iso} | {item.get('minPrice',0):,}원 | tripDays={item.get('tripDays')} | stops={item.get('stops')}")
     else:
         print("결과 없음. 응답 (첫 300자):", str(data)[:300])
 except Exception as e:

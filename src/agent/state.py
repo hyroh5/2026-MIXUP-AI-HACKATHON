@@ -11,6 +11,7 @@ class TravelIntent(TypedDict):
     adults: int             # 인원
     trip_nights: int        # 숙박 일수
     target_months: list     # 검색 대상 월 목록 (예: ["202607"]) — date_fixed=False일 때 사용
+    prefer_nonstop: bool    # True면 직항 선호 → 경유 감점 폭 증가
 
 
 class AgentState(TypedDict):

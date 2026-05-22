@@ -12,3 +12,6 @@ class FlightPrice:
     airline_codes: list[str] = field(default_factory=list)
     trip_days: int = 0
     currency: str = "KRW"
+    time_category: str = ""         # 출발 시간대 (DAWN/MORNING/AFTERNOON/EVENING)
+    departure_time: str = ""        # HH:MM (SerpAPI fallback용)
+    arrival_time: str = ""          # HH:MM (SerpAPI fallback용)

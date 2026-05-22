@@ -17,7 +17,7 @@ _app = None
 def _get_app():
     global _app
     if _app is None:
-        _app = build_graph()
+        _app = build_graph(interactive=False)
     return _app
 
 

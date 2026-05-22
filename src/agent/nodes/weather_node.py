@@ -5,13 +5,24 @@ from src.weather import get_weather
 
 
 def weather_node(state: AgentState) -> dict:
-    """체크인~체크아웃 전 기간 날씨를 조회한다."""
+    """체크인~체크아웃 전 기간 날씨를 조회한다.
+
+    date_optimizer가 이미 날씨를 계산해 state에 넣었으면 재호출 없이 재사용한다.
+    """
     intent = state["intent"]
     dest = intent["destination"]
 
     if not intent.get("check_in"):
         print(f"\n⛅ [2/5] 날씨 조회 스킵 — check_in 미확정")
         return {"is_rainy": False, "weather_summary": "날짜 미확정으로 날씨 조회 불가"}
+
+    # date_optimizer에서 이미 계산한 경우 재사용
+    existing = state.get("weather_summary", "")
+    if existing:
+        print(f"\n⛅ [2/5] 날씨 재사용 — {dest} {intent['check_in']} ~ {intent['check_out']}")
+        for line in existing.splitlines():
+            print(f"  ✓ {line}")
+        return {}
 
     check_in = datetime.strptime(intent["check_in"], "%Y-%m-%d").date()
     check_out = datetime.strptime(intent["check_out"], "%Y-%m-%d").date()

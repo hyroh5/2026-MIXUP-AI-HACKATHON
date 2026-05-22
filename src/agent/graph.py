@@ -4,7 +4,7 @@ from .state import AgentState
 from .llm import get_llm
 from .nodes import (
     make_intent_router,
-    date_optimizer_node,
+    make_date_optimizer_node,
     weather_node,
     stay_node,
     place_node,
@@ -12,21 +12,24 @@ from .nodes import (
 )
 
 
-def build_graph(model: str = "solar-pro3", temperature: float = 0.7):
+def build_graph(model: str = "solar-pro3", temperature: float = 0.7, interactive: bool = True):
     """6-노드 여행 플래너 LangGraph 그래프.
 
     날짜 확정:  START → intent_router → weather → stay → place → synthesizer → END
     날짜 미정:  START → intent_router → date_optimizer → weather → stay → place → synthesizer → END
+
+    Args:
+        interactive: True(기본) = date_optimizer에서 TOP 10 표시 후 사용자 확인.
+                     False = 1위 자동 선택 (FastAPI 서버 모드).
     """
     llm = get_llm(model=model, temperature=temperature)
 
     def _route_after_intent(state: AgentState) -> str:
-        """날짜 확정 여부에 따라 date_optimizer 또는 weather로 분기한다."""
         return "weather" if state.get("date_fixed", True) else "date_optimizer"
 
     graph = StateGraph(AgentState)
     graph.add_node("intent_router", make_intent_router(llm))
-    graph.add_node("date_optimizer", date_optimizer_node)
+    graph.add_node("date_optimizer", make_date_optimizer_node(interactive=interactive))
     graph.add_node("weather", weather_node)
     graph.add_node("stay", stay_node)
     graph.add_node("place", place_node)
