@@ -1,3 +1,9 @@
+# 2026 MIXUP AI HACKATHON
+
+연합동아리 비타민, 프로메테우스, 투빅스 주최 해커톤
+
+---
+
 # 🌤 Weather API - 전세계 날씨 조회
 
 Open-Meteo API를 사용해 도시명과 날짜를 입력하면 날씨 정보를 출력합니다.  
