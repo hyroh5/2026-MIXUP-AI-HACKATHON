@@ -20,9 +20,11 @@ def make_synthesizer_node(llm):
         places_text = "[ 수집된 장소 ]\n"
         places_text += f"숙소: {state.get('hotel_name')} ({state.get('hotel_address')})\n"
         for r in state.get("restaurants", []):
-            places_text += f"맛집: {r['title']} | {r['address']} | {r['category']}\n"
+            desc = f" — {r['description']}" if r.get("description") else ""
+            places_text += f"맛집: {r['title']} | {r['address']} | {r['category']}{desc}\n"
         for a in state.get("attractions", []):
-            places_text += f"명소: {a['title']} | {a['address']} | {a['category']}\n"
+            desc = f" — {a['description']}" if a.get("description") else ""
+            places_text += f"명소: {a['title']} | {a['address']} | {a['category']}{desc}\n"
 
         system = SystemMessage(content=(
             "너는 전문 여행 플래너야. "
