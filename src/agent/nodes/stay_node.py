@@ -63,9 +63,13 @@ def _search_top3(intent: dict, max_per_night: int) -> list[dict]:
             cost = _parse_cost(h.total_rate or h.rate_per_night)
             candidates.append({
                 "name": h.name,
-                "address": "",
+                "address": h.address or "",
+                "description": h.description or "",
+                "image_url": h.thumbnail or "",
                 "cost": cost,
                 "rating": h.overall_rating or 0.0,
+                "amenities": h.amenities[:4],
+                "details_link": h.details_link or "",
             })
         return candidates
 
