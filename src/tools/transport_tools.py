@@ -24,9 +24,8 @@ def tool_search_flights(departure_id: str, arrival_id: str, outbound_date: str, 
     사용자가 여행 출발일과 도착일을 확실하게 '픽스(Fix)'한 경우, 출발지와 도착지 간의 최적 항공편을 검색하는 도구입니다.
 
     [ 필수 행동 지침 ]
-    1. 사용 조건: 여행 날짜가 구체적이고 확정적일 때만 이 도구를 사용하세요. 
-    2. 날짜 미정 처리: 사용자가 "7월 중에", "제일 싼 날짜에" 처럼 날짜를 확정하지 않았다면, 절대 이 도구를 쓰지 말고 `tool_get_cheapest_flight_dates`를 사용하세요.
-    3. 예산 연동 (Budget Balancing): 이 도구로 도출된 항공권 가격(price)은 유저의 '총 예산'에서 가장 먼저 차감되어야 합니다. 검색 결과를 바탕으로 잔여 예산을 계산하여 다음 에이전트(Stay, Place)가 사용할 수 있도록 상태(State)에 기록하세요.
+    1. 날짜 미정 처리: 사용자가 "7월 중에", "제일 싼 날짜에" 처럼 날짜를 확정하지 않았다면, 절대 이 도구를 쓰지 말고 `tool_get_cheapest_flight_dates`를 사용하세요.
+    2. 예산 연동 (Budget Balancing): 이 도구로 도출된 항공권 가격(price)은 유저의 '총 예산'에서 가장 먼저 차감되어야 합니다. 검색 결과를 바탕으로 잔여 예산을 계산하여 다음 에이전트(Stay, Place)가 사용할 수 있도록 상태(State)에 기록하세요.
     """
     try:
         result = search_flights(
