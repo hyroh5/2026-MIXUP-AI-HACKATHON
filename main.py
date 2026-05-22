@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -33,6 +34,9 @@ def main() -> None:
         })
         print(f"\n{result.get('final_report') or result['messages'][-1].content}\n")
 
+=======
+import uvicorn
+>>>>>>> feature/fastapi
 
 if __name__ == "__main__":
-    main()
+    uvicorn.run("api.main:app", host="0.0.0.0", port=8000, reload=True)
