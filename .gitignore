@@ -7,7 +7,7 @@
 .venv/
 venv/
 env/
-__pycache__/
+**/__pycache__/
 *.py[cod]
 *.pyo
 .ipynb_checkpoints/
