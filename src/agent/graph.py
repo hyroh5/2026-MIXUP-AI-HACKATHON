@@ -1,3 +1,7 @@
+import argparse
+from pathlib import Path
+
+from dotenv import load_dotenv
 from langgraph.graph import StateGraph, START, END
 
 from .state import AgentState
@@ -48,3 +52,34 @@ def build_graph(model: str = "solar-pro3", temperature: float = 0.7, interactive
     graph.add_edge("synthesizer", END)
 
     return graph.compile()
+
+
+def _save_mermaid_image(output_path: Path) -> Path:
+    """그래프를 Mermaid PNG 이미지로 저장한다."""
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    app = build_graph()
+    app.get_graph().draw_mermaid_png(output_file_path=str(output_path))
+    return output_path
+
+
+
+
+
+if __name__ == "__main__":
+    def _load_project_env() -> None:
+        """프로젝트 루트의 .env 파일을 로드한다."""
+        project_root = Path(__file__).resolve().parents[2]
+        load_dotenv(project_root / ".env")
+    _load_project_env()
+    project_root = Path(__file__).resolve().parents[2]
+    parser = argparse.ArgumentParser(description="Render the agent graph as a Mermaid PNG.")
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=project_root / "graph.png",
+        help="Output PNG path (default: project root / graph.png)",
+    )
+    args = parser.parse_args()
+
+    saved_path = _save_mermaid_image(args.output)
+    print(f"Saved Mermaid graph image to {saved_path}")
