@@ -12,6 +12,7 @@ from .nodes import (
     make_date_compute_node,
     make_date_select_node,
     weather_node,
+    make_hotel_prefs_node,
     make_hotel_compute_node,
     make_hotel_select_node,
     make_place_node,
@@ -20,20 +21,20 @@ from .nodes import (
 
 
 def build_graph(model: str = "solar-pro3", temperature: float = 0.7):
-    """8-노드 여행 플래너 LangGraph 그래프.
+    """9-노드 여행 플래너 LangGraph 그래프.
 
     모든 경우:
       START → intent_router → date_compute
                                 ├─(후보 있음)→ date_select → weather
                                 └─(후보 없음)→ weather
-      weather → hotel_compute
+      weather → hotel_prefs (interrupt: 필터 조건 선택 | 선호 호텔 명시 시 스킵)
+              → hotel_compute (prefs 반영 API 호출)
                   ├─(선호 호텔)→ place
-                  └─(검색 필요)→ hotel_select → place
+                  └─(검색 필요)→ hotel_select (interrupt: 호텔 선택) → place
       place → synthesizer → END
 
-    date_compute와 hotel_compute는 interrupt 없이 API 호출만 수행한다.
-    date_select와 hotel_select는 state에서 읽어 interrupt만 발생시키므로
-    LangGraph resume 시 재실행돼도 API 이중 호출이 발생하지 않는다.
+    *_compute 노드: interrupt 없이 API 호출만 수행 (resume 시 재호출 없음)
+    *_select 노드: state 읽어 interrupt만 발생 (API 이중 호출 없음)
     """
     llm = get_llm(model=model, temperature=temperature)
 
@@ -48,6 +49,7 @@ def build_graph(model: str = "solar-pro3", temperature: float = 0.7):
     graph.add_node("date_compute", make_date_compute_node())
     graph.add_node("date_select", make_date_select_node())
     graph.add_node("weather", weather_node)
+    graph.add_node("hotel_prefs", make_hotel_prefs_node())
     graph.add_node("hotel_compute", make_hotel_compute_node())
     graph.add_node("hotel_select", make_hotel_select_node())
     graph.add_node("place", make_place_node(llm))
@@ -61,7 +63,8 @@ def build_graph(model: str = "solar-pro3", temperature: float = 0.7):
         {"date_select": "date_select", "weather": "weather"},
     )
     graph.add_edge("date_select", "weather")
-    graph.add_edge("weather", "hotel_compute")
+    graph.add_edge("weather", "hotel_prefs")
+    graph.add_edge("hotel_prefs", "hotel_compute")
     graph.add_conditional_edges(
         "hotel_compute",
         _route_after_hotel_compute,

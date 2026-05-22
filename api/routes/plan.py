@@ -31,6 +31,7 @@ def _initial_state(user_msg: str) -> dict:
         "candidate_dates": [],
         "is_rainy": False,
         "weather_summary": "",
+        "hotel_prefs": {},
         "hotel_name": "",
         "hotel_address": "",
         "hotel_cost": 0,
@@ -93,7 +94,14 @@ async def start_plan(req: PlanRequest) -> StartPlanResponse:
     interrupt_val = _check_interrupt(app, config)
     if interrupt_val:
         interrupt_type = interrupt_val.get("type", "")
-        if interrupt_type in ("date_selection", "hotel_selection"):
+        if interrupt_type in ("date_selection", "hotel_selection", "hotel_prefs"):
+            if interrupt_type == "hotel_prefs":
+                return StartPlanResponse(
+                    thread_id=thread_id,
+                    phase="hotel_prefs",
+                    question=interrupt_val.get("question", ""),
+                    schema=interrupt_val.get("schema", []),
+                )
             return StartPlanResponse(
                 thread_id=thread_id,
                 phase=interrupt_type,

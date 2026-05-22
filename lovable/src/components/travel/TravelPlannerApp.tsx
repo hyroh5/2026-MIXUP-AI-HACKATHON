@@ -18,6 +18,7 @@ import {
   CloudRain,
   RotateCcw,
   Plane,
+  SlidersHorizontal,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -39,6 +40,7 @@ import type {
   PipelineStepId,
   StepStatus,
 } from "@/lib/travel/types";
+import type { HotelPrefsSection } from "@/lib/api";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
@@ -147,7 +149,7 @@ export default function TravelPlannerApp() {
         stay: currentAnswers.stay,
       });
 
-      handlePlanResult(res.thread_id, res.phase, res.candidates, res.result);
+      handlePlanResult(res.thread_id, res.phase, res.candidates, res.result, res.schema);
     } catch (e) {
       setError(e instanceof Error ? e.message : "API 오류가 발생했습니다.");
       setPhase("done");
@@ -159,6 +161,7 @@ export default function TravelPlannerApp() {
     resultPhase: string,
     candidates?: DateCandidate[] | HotelCandidate[],
     result?: PlanResult,
+    schema?: HotelPrefsSection[],
   ) => {
     setThreadId(tid);
 
@@ -170,6 +173,15 @@ export default function TravelPlannerApp() {
         role: "date_proposal",
         question: "날짜를 선택해주세요:",
         candidates: (candidates ?? []) as DateCandidate[],
+      });
+    } else if (resultPhase === "hotel_prefs") {
+      setPipelineStatus((s) => ({ ...s, orchestrator: "완료", date: "완료", stay: "진행중" }));
+      setPhase("hotel_prefs");
+      addMessage({
+        id: uid(),
+        role: "hotel_prefs_proposal",
+        question: "어떤 조건의 숙소를 원하시나요?",
+        schema: schema ?? [],
       });
     } else if (resultPhase === "hotel_selection") {
       setPipelineStatus((s) => ({
@@ -201,6 +213,20 @@ export default function TravelPlannerApp() {
     }
   };
 
+  const confirmHotelPrefs = async (prefsJson: string) => {
+    if (!threadId) return;
+    setMessages((prev) => prev.filter((m) => m.role !== "hotel_prefs_proposal"));
+    addMessage({ id: uid(), role: "answer", text: "숙소 조건 설정 완료" });
+    setPhase("resuming");
+    try {
+      const res = await resumePlan(threadId, prefsJson);
+      handlePlanResult(res.thread_id, res.phase, res.candidates, res.result, res.schema);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "API 오류가 발생했습니다.");
+      setPhase("done");
+    }
+  };
+
   const confirmDate = async (choice: string) => {
     if (!threadId) return;
     setMessages((prev) => prev.filter((m) => m.role !== "date_proposal"));
@@ -210,7 +236,7 @@ export default function TravelPlannerApp() {
 
     try {
       const res = await resumePlan(threadId, choice);
-      handlePlanResult(res.thread_id, res.phase, res.candidates, res.result);
+      handlePlanResult(res.thread_id, res.phase, res.candidates, res.result, res.schema);
     } catch (e) {
       setError(e instanceof Error ? e.message : "API 오류가 발생했습니다.");
       setPhase("done");
@@ -232,7 +258,7 @@ export default function TravelPlannerApp() {
       setTimeout(() => setPipelineStatus((s) => ({ ...s, place: "완료", routing: "진행중" })), 2000);
       setTimeout(() => setPipelineStatus((s) => ({ ...s, routing: "완료", synth: "진행중" })), 3200);
 
-      handlePlanResult(res.thread_id, res.phase, res.candidates, res.result);
+      handlePlanResult(res.thread_id, res.phase, res.candidates, res.result, res.schema);
     } catch (e) {
       setError(e instanceof Error ? e.message : "API 오류가 발생했습니다.");
       setPhase("done");
@@ -286,6 +312,7 @@ export default function TravelPlannerApp() {
                   pipelineStatus={pipelineStatus}
                   onConfirmDate={confirmDate}
                   onConfirmStay={confirmStay}
+                  onConfirmHotelPrefs={confirmHotelPrefs}
                   onReset={reset}
                   planResult={planResult}
                   error={error}
@@ -397,6 +424,7 @@ function MessageRow({
   pipelineStatus,
   onConfirmDate,
   onConfirmStay,
+  onConfirmHotelPrefs,
   onReset,
   planResult,
   error,
@@ -407,6 +435,7 @@ function MessageRow({
   pipelineStatus: Record<PipelineStepId, StepStatus>;
   onConfirmDate: (choice: string) => void;
   onConfirmStay: (choice: string) => void;
+  onConfirmHotelPrefs: (prefsJson: string) => void;
   onReset: () => void;
   planResult: PlanResult | null;
   error: string | null;
@@ -475,6 +504,18 @@ function MessageRow({
           question={m.question}
           candidates={m.candidates}
           onConfirm={onConfirmDate}
+        />
+      </div>
+    );
+  }
+
+  if (m.role === "hotel_prefs_proposal") {
+    return (
+      <div className="animate-fade-in">
+        <HotelPrefsCard
+          question={m.question}
+          schema={m.schema}
+          onConfirm={onConfirmHotelPrefs}
         />
       </div>
     );
@@ -725,6 +766,85 @@ function DateProposalCard({
       </div>
       <Button size="sm" onClick={() => onConfirm(selected)} className="mt-1">
         <Check className="h-3.5 w-3.5" /> 이 날짜로 확정
+      </Button>
+    </Card>
+  );
+}
+
+/* -------------------- Hotel Prefs -------------------- */
+
+function HotelPrefsCard({
+  question,
+  schema,
+  onConfirm,
+}: {
+  question: string;
+  schema: HotelPrefsSection[];
+  onConfirm: (prefsJson: string) => void;
+}) {
+  const [selections, setSelections] = useState<Record<string, unknown>>(() => {
+    const init: Record<string, unknown> = {};
+    schema.forEach((s) => { init[s.key] = s.default; });
+    return init;
+  });
+
+  const toggle = (key: string, value: unknown, multi: boolean) => {
+    setSelections((prev) => {
+      if (!multi) return { ...prev, [key]: value };
+      const arr = (prev[key] as unknown[]) ?? [];
+      const idx = arr.indexOf(value);
+      return {
+        ...prev,
+        [key]: idx >= 0 ? arr.filter((v) => v !== value) : [...arr, value],
+      };
+    });
+  };
+
+  return (
+    <Card className="ml-10 max-w-[90%] gap-4 p-4 shadow-sm animate-scale-in">
+      <div className="flex items-center gap-2 text-sm font-medium">
+        <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
+        {question}
+      </div>
+      <div className="flex flex-col gap-4">
+        {schema.map((section) => {
+          const current = selections[section.key];
+          return (
+            <div key={section.key} className="flex flex-col gap-2">
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                {section.label}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {section.options.map((opt) => {
+                  const isSelected = section.multi
+                    ? (current as unknown[])?.includes(opt.value)
+                    : current === opt.value;
+                  return (
+                    <button
+                      key={String(opt.value)}
+                      onClick={() => toggle(section.key, opt.value, section.multi)}
+                      className={cn(
+                        "rounded-full border px-3 py-1 text-xs font-medium transition",
+                        isSelected
+                          ? "border-foreground bg-foreground text-background"
+                          : "border-border bg-card text-foreground/70 hover:border-foreground/40",
+                      )}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <Button
+        size="sm"
+        onClick={() => onConfirm(JSON.stringify(selections))}
+        className="mt-1"
+      >
+        <Check className="h-3.5 w-3.5" /> 조건 확정
       </Button>
     </Card>
   );

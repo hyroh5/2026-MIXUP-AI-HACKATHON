@@ -1,16 +1,29 @@
 # -*- coding: utf-8 -*-
 import os
 import re as _re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, date as date_type
 
 from langgraph.types import interrupt
 
 from src.agent.state import AgentState, TravelIntent
-from src.weather import get_weather
+from src.weather.forecast import get_archive, get_forecast, get_seasonal
+from src.weather.geocoding import get_coordinates
+from src.weather.models import DailyWeather
 from src.cheapest_date import get_cheapest_dates
 from src.cheapest_date.flight_crawler import _serpapi_fetch_flight
 from src.cheapest_date.models import FlightPrice
 from src.cheapest_date.iata import get_iata, is_domestic as iata_is_domestic
+
+# 도시별 좌표 캐시 — 같은 도시를 여러 번 조회해도 Nominatim 호출 1회
+_coord_cache: dict[str, tuple[float, float, str]] = {}
+
+def _get_cached_coords(city: str) -> tuple[float, float, str]:
+    """(lat, lon, timezone) — 첫 호출만 Nominatim에 요청하고 이후는 캐시 반환."""
+    if city not in _coord_cache:
+        lat, lon, _name, _country, tz = get_coordinates(city)
+        _coord_cache[city] = (lat, lon, tz)
+    return _coord_cache[city]
 
 _AIRLINE_NAMES: dict[str, str] = {
     "KE": "대한항공", "OZ": "아시아나", "7C": "제주항공", "LJ": "진에어",
@@ -83,29 +96,29 @@ def _weather_only_candidates(dest: str, trip_nights: int, today: date_type, inte
         (today + timedelta(days=i)).isoformat() for i in range(1, 14, 3)
     ]
 
-    candidates = []
-    for check_date in probe_dates:
-        try:
-            w = get_weather(dest, check_date, silent=True)
-        except Exception:
-            continue
-        if not w or not w.daily or w.daily.temp_max is None:
-            continue
-        d = w.daily
-        prob = d.precipitation_probability_max
-        temp_max = d.temp_max
-        prob_score = 3 if (prob is None or prob < 50) else 0
-        temp_score = 3 if 18 <= temp_max <= 28 else 0
-        score = float(prob_score + temp_score)
-        prob_str = f"강수확률 {prob:.0f}%" if prob is not None else f"강수 {d.precipitation_sum or 0:.1f}mm"
+    try:
+        _get_cached_coords(dest)
+    except Exception:
+        pass
+
+    def _probe_one(check_date: str) -> dict | None:
         check_out = (datetime.strptime(check_date, "%Y-%m-%d").date() + timedelta(days=trip_nights)).isoformat()
-        candidates.append({
+        weather_score, weather_desc, weather_full = _get_trip_weather(dest, check_date, check_out)
+        if not weather_desc or weather_desc == "날씨 조회 불가":
+            return None
+        return {
             "check_in": check_date, "check_out": check_out,
-            "flight_price": 0, "weather_summary": f"최고 {temp_max}°C, {prob_str}",
-            "score": score, "reason": f"날씨 기반 추천 · 최고 {temp_max}°C, {prob_str}",
-        })
-        if len(candidates) >= 5:
-            break
+            "flight_price": 0, "weather_summary": weather_desc, "weather_full": weather_full,
+            "score": round(weather_score, 2), "reason": f"날씨 기반 추천 · {weather_desc}",
+        }
+
+    candidates = []
+    with ThreadPoolExecutor(max_workers=min(len(probe_dates), 5)) as ex:
+        futs = {ex.submit(_probe_one, d): d for d in probe_dates}
+        for fut in as_completed(futs):
+            result = fut.result()
+            if result:
+                candidates.append(result)
 
     candidates.sort(key=lambda x: x["score"], reverse=True)
     updated_intent = dict(intent)
@@ -114,7 +127,7 @@ def _weather_only_candidates(dest: str, trip_nights: int, today: date_type, inte
         best = candidates[0]
         updated_intent["check_in"] = best["check_in"]
         updated_intent["check_out"] = best["check_out"]
-        _, __, weather_summary = _get_trip_weather(dest, best["check_in"], best["check_out"])
+        weather_summary = best.get("weather_full", best.get("weather_summary", ""))
         print(f"  ✓ 날씨 기반 추천: {best['check_in']} ~ {best['check_out']} ({best['reason']})")
     else:
         fallback = probe_dates[0] if probe_dates else (today + timedelta(days=30)).isoformat()
@@ -128,9 +141,24 @@ def _weather_only_candidates(dest: str, trip_nights: int, today: date_type, inte
 
 
 def _get_trip_weather(dest: str, check_in: str, check_out: str) -> tuple[float, str, str]:
+    """여행 기간 날씨를 한 번의 API 호출로 조회한다 (좌표 캐싱 + 날짜 범위 배치)."""
     check_in_d = datetime.strptime(check_in, "%Y-%m-%d").date()
     check_out_d = datetime.strptime(check_out, "%Y-%m-%d").date()
     nights = (check_out_d - check_in_d).days
+    today = datetime.now().date()
+    delta = (check_in_d - today).days
+
+    try:
+        lat, lon, tz = _get_cached_coords(dest)
+        if delta < 0:
+            raw = get_archive(lat, lon, check_in_d, check_out_d, tz)
+        elif delta <= 16:
+            raw = get_forecast(lat, lon, check_out_d, tz)
+        else:
+            raw = get_seasonal(lat, lon, check_in_d, check_out_d, tz)
+        daily_data = raw["daily"]
+    except Exception:
+        return 0.0, "날씨 조회 불가", ""
 
     daily_lines: list[str] = []
     temp_maxes: list[float] = []
@@ -140,14 +168,10 @@ def _get_trip_weather(dest: str, check_in: str, check_out: str) -> tuple[float, 
 
     for i in range(nights + 1):
         target = (check_in_d + timedelta(days=i)).isoformat()
-        try:
-            w = get_weather(dest, target, silent=True)
-        except Exception:
-            continue
-        if not w or not w.daily or w.daily.temp_max is None:
+        d = DailyWeather.from_api_response(daily_data, target)
+        if d.temp_max is None:
             continue
 
-        d = w.daily
         prob = d.precipitation_probability_max
         temp_max = d.temp_max or 20
         rain = d.rain_sum or d.precipitation_sum or 0
@@ -377,12 +401,17 @@ def _flexible_search(
     label = f"상위 {n_weather}건" if len(flights) > n_weather else f"{n_weather}건 전체"
     print(f"  → {label} 날씨 조회 중...")
 
-    # 2단계: 날씨 포함 최종 점수
-    candidates = []
-    for _, flight, check_out in top_flights:
+    # 2단계: 날씨 포함 최종 점수 — 후보 전체를 병렬로 조회
+    # 먼저 좌표를 미리 캐싱해둠 (스레드 풀 내부에서 Nominatim 중복 호출 방지)
+    try:
+        _get_cached_coords(dest)
+    except Exception:
+        pass
+
+    def _score_with_weather(flight: FlightPrice, check_out: str) -> dict:
         weather_score, weather_desc, weather_full = _get_trip_weather(dest, flight.date, check_out)
         total_score, reason = _score_flight(flight, flights, weather_score, prefer_nonstop)
-        candidates.append({
+        return {
             "check_in": flight.date, "check_out": check_out,
             "flight_price": flight.price,
             "weather_summary": weather_desc, "weather_full": weather_full,
@@ -392,7 +421,17 @@ def _flexible_search(
             "airline_name": _airline_label(flight.airline_codes),
             "departure_time": getattr(flight, "departure_time", ""),
             "arrival_time": getattr(flight, "arrival_time", ""),
-        })
+        }
+
+    candidates = []
+    with ThreadPoolExecutor(max_workers=min(n_weather, 8)) as ex:
+        futs = {ex.submit(_score_with_weather, flight, check_out): None
+                for _, flight, check_out in top_flights}
+        for fut in as_completed(futs):
+            try:
+                candidates.append(fut.result())
+            except Exception:
+                pass
 
     candidates.sort(key=lambda x: x["score"], reverse=True)
     return candidates[:10]

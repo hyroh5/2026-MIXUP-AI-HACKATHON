@@ -34,7 +34,8 @@ class ResumeRequest(BaseModel):
 
 class StartPlanResponse(BaseModel):
     thread_id: str
-    phase: str  # "date_selection" | "hotel_selection" | "done"
+    phase: str  # "date_selection" | "hotel_prefs" | "hotel_selection" | "done"
     question: str | None = None
     candidates: list[dict] | None = None
+    schema: list[dict] | None = None   # hotel_prefs 단계에서만 사용
     result: PlanResponse | None = None

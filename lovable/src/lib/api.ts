@@ -48,11 +48,20 @@ export interface HotelCandidate {
   rating: number;
 }
 
+export interface HotelPrefsSection {
+  key: string;
+  label: string;
+  multi: boolean;
+  options: { value: number | string | boolean | null; label: string }[];
+  default: number | string | boolean | null | (string | number)[];
+}
+
 export interface StartPlanResult {
   thread_id: string;
-  phase: "date_selection" | "hotel_selection" | "done";
+  phase: "date_selection" | "hotel_prefs" | "hotel_selection" | "done";
   question?: string;
   candidates?: DateCandidate[] | HotelCandidate[];
+  schema?: HotelPrefsSection[];
   result?: PlanResult;
 }
 

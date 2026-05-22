@@ -29,6 +29,35 @@ def _show_date_candidates(interrupt_val: dict) -> str:
             return "1"
 
 
+def _show_hotel_prefs(interrupt_val: dict) -> str:
+    """숙소 필터 조건을 콘솔에 안내하고 JSON 응답 또는 Enter(기본값)를 받는다."""
+    schema = interrupt_val.get("schema", [])
+    print(f"\n{interrupt_val.get('question', '숙소 조건을 설정해주세요:')}")
+    print()
+    for section in schema:
+        label = section["label"]
+        multi = section["multi"]
+        options = section["options"]
+        default = section["default"]
+        if multi:
+            opts = "  /  ".join(
+                f"{o['label']}={o['value']}" for o in options
+            )
+            print(f"  [{label}] {opts}")
+            print(f"    → 복수 선택 시 JSON 배열로 입력 (예: [35, 9])")
+        else:
+            opts = "  /  ".join(
+                f"{o['label']}" + (" (기본)" if o["value"] == default else "")
+                for o in options
+            )
+            print(f"  [{label}] {opts}")
+    print()
+    print("Enter = 기본값(가격 낮은순, 조건 없음)으로 검색")
+    print('직접 설정: {"sort_by": 8, "min_rating": 8, "hotel_class": ["4","5"], "amenities": [35,9], "free_cancellation": true}')
+    raw = input("\n조건 입력 (Enter=기본값): ").strip()
+    return raw if raw else "{}"
+
+
 def _show_hotel_candidates(interrupt_val: dict) -> str:
     """호텔 후보 목록을 출력하고 사용자 선택(1/2/3)을 받는다."""
     candidates = interrupt_val.get("candidates", [])
@@ -71,6 +100,7 @@ def _initial_state(user_input: str) -> dict:
         "hotel_address": "",
         "hotel_cost": 0,
         "remaining_budget": 0,
+        "hotel_prefs": {},
         "hotel_candidates": [],
         "restaurants": [],
         "attractions": [],
@@ -110,6 +140,10 @@ def main() -> None:
             interrupt_type = val.get("type") if isinstance(val, dict) else None
             if interrupt_type == "date_selection":
                 choice = _show_date_candidates(val)
+                result = app.invoke(Command(resume=choice), config=config)
+                snapshot = app.get_state(config)
+            elif interrupt_type == "hotel_prefs":
+                choice = _show_hotel_prefs(val)
                 result = app.invoke(Command(resume=choice), config=config)
                 snapshot = app.get_state(config)
             elif interrupt_type == "hotel_selection":

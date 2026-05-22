@@ -1,3 +1,4 @@
+import json
 import os
 
 from langgraph.types import interrupt
@@ -6,7 +7,7 @@ from src.agent.state import AgentState
 from src.hotel.search import search_google_hotels
 from src.hotel.models import HotelSearchRequest, Hotel
 
-HOTEL_BUDGET_RATIO = 0.6  # 총 예산의 최대 60%를 숙박에 사용
+HOTEL_BUDGET_RATIO = 0.6
 
 _MOCK_HOTELS = [
     {
@@ -41,6 +42,103 @@ _MOCK_HOTELS = [
     },
 ]
 
+# ── Google Hotels 필터 옵션 스키마 ─────────────────────────────────────────────
+# 프론트엔드가 이 구조를 그대로 렌더링한다.
+# value 값은 SerpAPI google_hotels 파라미터 값과 1:1 대응한다.
+HOTEL_PREFS_SCHEMA = [
+    {
+        "key": "sort_by",
+        "label": "정렬 기준",
+        "multi": False,
+        "options": [
+            {"value": 3,  "label": "가격 낮은순"},
+            {"value": 8,  "label": "별점 높은순"},
+            {"value": 13, "label": "추천순"},
+        ],
+        "default": 3,
+    },
+    {
+        "key": "min_rating",
+        "label": "최소 별점",
+        "multi": False,
+        "options": [
+            {"value": None, "label": "제한 없음"},
+            {"value": 7,    "label": "3.5점 이상"},
+            {"value": 8,    "label": "4.0점 이상"},
+            {"value": 9,    "label": "4.5점 이상"},
+        ],
+        "default": None,
+    },
+    {
+        "key": "hotel_class",
+        "label": "호텔 등급",
+        "multi": True,
+        "options": [
+            {"value": "2", "label": "2성"},
+            {"value": "3", "label": "3성"},
+            {"value": "4", "label": "4성"},
+            {"value": "5", "label": "5성"},
+        ],
+        "default": [],
+    },
+    {
+        "key": "amenities",
+        "label": "원하는 시설",
+        "multi": True,
+        "options": [
+            {"value": 35, "label": "조식 포함"},
+            {"value": 9,  "label": "수영장"},
+            {"value": 14, "label": "무료 주차"},
+            {"value": 4,  "label": "스파"},
+            {"value": 12, "label": "헬스장"},
+            {"value": 19, "label": "무료 Wi-Fi"},
+            {"value": 31, "label": "키즈 프렌들리"},
+            {"value": 44, "label": "반려동물 허용"},
+        ],
+        "default": [],
+    },
+    {
+        "key": "free_cancellation",
+        "label": "무료 취소",
+        "multi": False,
+        "options": [
+            {"value": False, "label": "상관없음"},
+            {"value": True,  "label": "가능한 곳만"},
+        ],
+        "default": False,
+    },
+    {
+        "key": "vacation_rentals",
+        "label": "숙소 유형",
+        "multi": False,
+        "options": [
+            {"value": False, "label": "호텔만"},
+            {"value": True,  "label": "에어비앤비·민박 포함"},
+        ],
+        "default": False,
+    },
+]
+
+_PREFS_DEFAULTS: dict = {s["key"]: s["default"] for s in HOTEL_PREFS_SCHEMA}
+
+
+def _parse_prefs(raw) -> dict:
+    """interrupt 응답을 검증·정제해 prefs dict를 반환한다."""
+    if not raw:
+        return dict(_PREFS_DEFAULTS)
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except Exception:
+            return dict(_PREFS_DEFAULTS)
+    if not isinstance(raw, dict):
+        return dict(_PREFS_DEFAULTS)
+    prefs = dict(_PREFS_DEFAULTS)
+    for k in _PREFS_DEFAULTS:
+        if k in raw:
+            prefs[k] = raw[k]
+    return prefs
+
 
 def _parse_cost(raw: str | None) -> int:
     if not raw:
@@ -50,12 +148,28 @@ def _parse_cost(raw: str | None) -> int:
     return cost if cost >= 10000 else 0
 
 
-def search_hotel_candidates(intent: dict, max_per_night: int, limit: int = 10) -> list[dict]:
-    """SerpAPI로 예산 이내 호텔 추천 후보를 검색한다 (최대 limit개). 실패 시 Mock 반환."""
+def search_hotel_candidates(
+    intent: dict,
+    max_per_night: int,
+    prefs: dict | None = None,
+    limit: int = 10,
+) -> list[dict]:
+    """SerpAPI로 사용자 선호 조건이 반영된 호텔 후보를 검색한다. 실패 시 Mock 반환."""
     serpapi_key = os.getenv("SERPAPI_KEY")
     if not serpapi_key:
         print("  ✗ SERPAPI_KEY 없음 → Mock 데이터 사용")
         return _build_mock(intent)
+
+    prefs = prefs or {}
+    sort_by: int = prefs.get("sort_by", 3)
+    min_rating = prefs.get("min_rating")              # None or int (7/8/9)
+    hotel_class_list: list = prefs.get("hotel_class", [])
+    amenities_list: list = prefs.get("amenities", [])
+    free_cancellation: bool = prefs.get("free_cancellation", False)
+    vacation_rentals: bool = prefs.get("vacation_rentals", False)
+
+    hotel_class_str = ",".join(str(c) for c in hotel_class_list) if hotel_class_list else None
+    amenities_str = ",".join(str(a) for a in amenities_list) if amenities_list else None
 
     try:
         req = HotelSearchRequest(
@@ -64,7 +178,13 @@ def search_hotel_candidates(intent: dict, max_per_night: int, limit: int = 10) -
             check_out_date=intent["check_out"],
             adults=intent["adults"],
             max_price=max_per_night,
-            gl="kr", hl="ko", currency="KRW", sort_by=3,
+            sort_by=sort_by,
+            rating=min_rating,
+            hotel_class=hotel_class_str,
+            amenities=amenities_str,
+            free_cancellation=True if free_cancellation else None,
+            vacation_rentals=True if vacation_rentals else None,
+            gl="kr", hl="ko", currency="KRW",
         )
         result = search_google_hotels(serpapi_key, req)
         if not result.hotels:
@@ -73,11 +193,7 @@ def search_hotel_candidates(intent: dict, max_per_night: int, limit: int = 10) -
         candidates = []
         nights = max(intent.get("trip_nights", 1), 1)
         for h in result.hotels[:limit]:
-            if h.total_rate:
-                cost = _parse_cost(h.total_rate)
-            else:
-                cost = _parse_cost(h.rate_per_night) * nights
-
+            cost = _parse_cost(h.total_rate) if h.total_rate else _parse_cost(h.rate_per_night) * nights
             candidates.append({
                 "name": h.name,
                 "address": h.address or "",
@@ -96,7 +212,6 @@ def search_hotel_candidates(intent: dict, max_per_night: int, limit: int = 10) -
 
 
 def _build_mock(intent: dict) -> list[dict]:
-    """Mock 호텔 3곳 반환 (총 비용 기준으로 trip_nights 반영)."""
     nights = max(intent.get("trip_nights", 1), 1)
     return [
         {
@@ -126,7 +241,49 @@ def _budget_caps(intent: dict) -> tuple[int, int, int]:
     return after_flight, max_hotel_total, max_hotel_total // nights
 
 
-# ── hotel_compute: API 호출 (interrupt 없음 — 재실행돼도 API 중복 없음) ────────────
+# ── hotel_prefs: 선호 조건 수집 (interrupt) ───────────────────────────────────
+
+def make_hotel_prefs_node():
+    def hotel_prefs_node(state: AgentState) -> dict:
+        """사용자에게 Google Hotels 필터 조건을 묻는다.
+        선호 호텔이 이미 명시된 경우 interrupt 없이 스킵한다.
+        """
+        intent = state["intent"]
+        if intent.get("preferred_hotel"):
+            return {"hotel_prefs": {}}
+
+        print(f"\n🔍 [3-1/5] 숙소 조건 설정 중...")
+        raw = interrupt({
+            "type": "hotel_prefs",
+            "question": "어떤 조건의 숙소를 원하시나요?",
+            "schema": HOTEL_PREFS_SCHEMA,
+        })
+        prefs = _parse_prefs(raw)
+
+        labels = []
+        if prefs.get("sort_by", 3) != 3:
+            sort_map = {8: "별점높은순", 13: "추천순"}
+            labels.append(sort_map.get(prefs["sort_by"], ""))
+        if prefs.get("min_rating"):
+            labels.append(f"{prefs['min_rating'] * 0.5:.1f}점 이상")
+        if prefs.get("hotel_class"):
+            labels.append(f"{'·'.join(prefs['hotel_class'])}성")
+        amenity_map = {35:"조식",9:"수영장",14:"무료주차",4:"스파",12:"헬스장",19:"WiFi",31:"키즈",44:"반려동물"}
+        for a in prefs.get("amenities", []):
+            labels.append(amenity_map.get(a, str(a)))
+        if prefs.get("free_cancellation"):
+            labels.append("무료취소")
+        if prefs.get("vacation_rentals"):
+            labels.append("에어비앤비포함")
+
+        summary = " | ".join(labels) if labels else "기본값(가격 낮은순, 조건 없음)"
+        print(f"  ✓ 조건: {summary}")
+        return {"hotel_prefs": prefs}
+
+    return hotel_prefs_node
+
+
+# ── hotel_compute: API 호출 (interrupt 없음) ──────────────────────────────────
 
 def make_hotel_compute_node():
     def hotel_compute_node(state: AgentState) -> dict:
@@ -137,14 +294,13 @@ def make_hotel_compute_node():
         adults = intent.get("adults", 1)
         flight_cost = intent.get("flight_cost", 0)
 
-        print(f"\n🏨 [3/5] 숙소 확인 중 — {intent['destination']}")
+        print(f"\n🏨 [3-2/5] 숙소 검색 중 — {intent['destination']}")
         print(f"  예산 현황: 총 {budget:,}원 | 항공(왕복×{adults}인) {flight_cost:,}원 차감")
 
         after_flight, max_hotel_total, max_per_night = _budget_caps(intent)
 
-        # Case 1: 선호 호텔 명시 → 후보 검색 없이 바로 확정
         if preferred:
-            print(f"  ✓ 선호 호텔 사용: {preferred} (숙박비 미확인)")
+            print(f"  ✓ 선호 호텔 사용: {preferred}")
             return {
                 "hotel_name": preferred,
                 "hotel_address": "",
@@ -153,13 +309,12 @@ def make_hotel_compute_node():
                 "hotel_candidates": [],
             }
 
-        # Case 2: 선호 없음 → 잔여 예산 기반 검색만 (interrupt 없음)
         if flight_cost == 0:
             print(f"  △ 항공비 미확정 — 총 예산의 {int(HOTEL_BUDGET_RATIO*100)}%를 숙박 상한으로 설정")
         print(f"  → 숙박 가용 {max_hotel_total:,}원 ({nights}박) → 1박 상한 {max_per_night:,}원")
 
-        candidates = search_hotel_candidates(intent, max_per_night, limit=10)
-        # hotel_name을 빈 문자열로 → _route_after_hotel_compute이 hotel_select로 라우팅
+        prefs = state.get("hotel_prefs") or {}
+        candidates = search_hotel_candidates(intent, max_per_night, prefs=prefs, limit=10)
         return {
             "hotel_candidates": candidates,
             "hotel_name": "",
@@ -168,7 +323,7 @@ def make_hotel_compute_node():
     return hotel_compute_node
 
 
-# ── hotel_select: interrupt만 처리 (재실행 시 API 호출 없음) ─────────────────────
+# ── hotel_select: 선택 interrupt ──────────────────────────────────────────────
 
 def make_hotel_select_node():
     def hotel_select_node(state: AgentState) -> dict:
@@ -183,7 +338,7 @@ def make_hotel_select_node():
             "type": "hotel_selection",
             "question": (
                 f"숙소를 선택해주세요 "
-                f"(1박 {max_per_night:,}원 이하 기준, {nights}박 총액 {max_hotel_total:,}원 이내):"
+                f"(1박 {max_per_night:,}원 이하, {nights}박 총액 {max_hotel_total:,}원 이내):"
             ),
             "candidates": candidates,
         })

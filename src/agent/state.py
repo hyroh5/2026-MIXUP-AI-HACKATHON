@@ -31,11 +31,12 @@ class AgentState(TypedDict):
     weather_summary: str
 
     # 4. Stay Node 출력
+    hotel_prefs: dict        # 사용자가 선택한 숙소 필터 조건
     hotel_name: str
     hotel_address: str
     hotel_cost: int
     remaining_budget: int
-    hotel_candidates: list  # 예산 내 추천 후보 3곳 (선호 호텔 없을 때 채워짐)
+    hotel_candidates: list  # 예산 내 추천 후보 (선호 호텔 없을 때 채워짐)
 
     # 5. Place Node 출력
     restaurants: list

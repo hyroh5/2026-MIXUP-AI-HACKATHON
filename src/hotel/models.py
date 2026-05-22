@@ -19,6 +19,7 @@ class HotelSearchRequest:
     max_price: int | None = None
     rating: int | None = None           # 최소 평점 (1~10)
     hotel_class: str | None = None      # 호텔 등급 (예: "3,4,5")
+    amenities: str | None = None           # 시설 필터 ID (예: "35,9,14")
     free_cancellation: bool | None = None
     special_offers: bool | None = None
     eco_certified: bool | None = None

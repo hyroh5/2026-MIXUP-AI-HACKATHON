@@ -36,6 +36,7 @@ def search_google_hotels(api_key: str, request: HotelSearchRequest) -> HotelSear
         "max_price": request.max_price,
         "rating": request.rating,
         "hotel_class": request.hotel_class,
+        "amenities": request.amenities,
         "free_cancellation": request.free_cancellation,
         "special_offers": request.special_offers,
         "eco_certified": request.eco_certified,
