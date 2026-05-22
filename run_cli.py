@@ -10,6 +10,22 @@ from src.agent import build_graph
 app = build_graph()
 
 
+def _show_date_candidates(interrupt_val: dict) -> str:
+    """날짜 후보 목록을 출력하고 사용자 선택(1/2/3)을 받는다."""
+    candidates = interrupt_val.get("candidates", [])
+    print(f"\n{interrupt_val.get('question', '날짜를 선택해주세요:')}")
+    for i, c in enumerate(candidates, 1):
+        price_str = f" | 항공 {c['flight_price']:,}원" if c.get("flight_price") else ""
+        print(f"  {i}) {c['check_in']} ~ {c['check_out']} | {c.get('weather_summary', '')}{price_str}")
+        print(f"      {c.get('reason', '')}")
+
+    while True:
+        choice = input(f"\n번호를 선택하세요 (1~{len(candidates)}): ").strip()
+        if choice.isdigit() and 1 <= int(choice) <= len(candidates):
+            return choice
+        print(f"  1~{len(candidates)} 사이의 숫자를 입력해주세요.")
+
+
 def _show_hotel_candidates(interrupt_val: dict) -> str:
     """호텔 후보 목록을 출력하고 사용자 선택(1/2/3)을 받는다."""
     candidates = interrupt_val.get("candidates", [])
@@ -67,7 +83,12 @@ def main() -> None:
             if not interrupts:
                 break
             val = interrupts[0].value
-            if isinstance(val, dict) and val.get("type") == "hotel_selection":
+            interrupt_type = val.get("type") if isinstance(val, dict) else None
+            if interrupt_type == "date_selection":
+                choice = _show_date_candidates(val)
+                result = app.invoke(Command(resume=choice), config=config)
+                snapshot = app.get_state(config)
+            elif interrupt_type == "hotel_selection":
                 choice = _show_hotel_candidates(val)
                 result = app.invoke(Command(resume=choice), config=config)
                 snapshot = app.get_state(config)

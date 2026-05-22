@@ -24,3 +24,16 @@ class PlanResponse(BaseModel):
     restaurants: list[PlaceItem]
     attractions: list[PlaceItem]
     final_report: str
+
+
+class ResumeRequest(BaseModel):
+    thread_id: str
+    choice: str  # "1", "2", "3"
+
+
+class StartPlanResponse(BaseModel):
+    thread_id: str
+    phase: str  # "date_selection" | "hotel_selection" | "done"
+    question: str | None = None
+    candidates: list[dict] | None = None
+    result: PlanResponse | None = None

@@ -2,6 +2,8 @@
 import os
 from datetime import datetime, timedelta, date as date_type
 
+from langgraph.types import interrupt
+
 from src.agent.state import AgentState, TravelIntent
 from src.weather import get_weather
 from src.cheapest_date import get_cheapest_dates
@@ -309,7 +311,6 @@ def _display_top10(candidates: list[dict], dest: str, trip_nights: int) -> None:
         weather_short = c.get("weather_summary", "")
         star = "★★★" if i == 1 else ("★★" if i <= 3 else "★")
         return_date = c.get("check_out", "")
-        # MM/DD 형식으로 짧게 표시
         ret_short = return_date[5:] if return_date else "?"
         print(
             f"  {i:>2}  {c['check_in']:^10}  {ret_short:^10}  {time_str:^13}  {airline:<12}  "
@@ -319,25 +320,11 @@ def _display_top10(candidates: list[dict], dest: str, trip_nights: int) -> None:
     print(f"{'─'*90}")
 
 
-def _prompt_selection(candidates: list[dict]) -> int:
-    while True:
-        try:
-            raw = input(f"\n  번호를 선택하세요 (1-{len(candidates)}, Enter = 1번): ").strip()
-            if not raw:
-                return 0
-            idx = int(raw) - 1
-            if 0 <= idx < len(candidates):
-                return idx
-            print(f"  ⚠ 1~{len(candidates)} 사이 숫자를 입력하세요.")
-        except (ValueError, EOFError):
-            return 0
-
-
-def make_date_optimizer_node(interactive: bool = True):
+def make_date_optimizer_node():
     """date_optimizer_node 팩토리.
 
-    Args:
-        interactive: True면 TOP 10 표시 후 사용자 확인, False면 1위 자동 선택 (API 모드)
+    LangGraph interrupt()로 사용자에게 날짜 선택을 요청한다.
+    CLI와 API 모두 interrupt 루프로 처리한다.
     """
     def date_optimizer_node(state: AgentState) -> dict:
         intent = state["intent"]
@@ -423,12 +410,33 @@ def make_date_optimizer_node(interactive: bool = True):
 
         _display_top10(top10, dest, trip_nights)
 
-        if interactive:
-            selected_idx = _prompt_selection(top10)
-        else:
+        top3 = top10[:3]
+        choice_str = interrupt({
+            "type": "date_selection",
+            "question": f"{dest} 여행 날짜를 선택해주세요 (항공권+날씨 분석 결과):",
+            "candidates": [
+                {
+                    "check_in": c["check_in"],
+                    "check_out": c["check_out"],
+                    "weather_summary": c["weather_summary"],
+                    "flight_price": c["flight_price"],
+                    "score": c["score"],
+                    "reason": c["reason"],
+                    "airline_name": c.get("airline_name", ""),
+                    "stops": c.get("stops", -1),
+                }
+                for c in top3
+            ],
+        })
+
+        try:
+            selected_idx = int(str(choice_str)) - 1
+            if not (0 <= selected_idx < len(top3)):
+                selected_idx = 0
+        except (ValueError, TypeError):
             selected_idx = 0
 
-        selected = top10[selected_idx]
+        selected = top3[selected_idx]
 
         # 선택된 1건만 SerpAPI로 출발/도착 시각 enrichment (이미 있으면 스킵)
         if not selected.get("departure_time"):
