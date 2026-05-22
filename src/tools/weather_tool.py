@@ -16,8 +16,7 @@ class GeocodingArgs(BaseModel):
 @tool(args_schema=GeocodingArgs)
 def tool_get_coordinates(location: str) -> Dict[str, Any]:
     """
-    특정 지역의 위도(lat)와 경도(lon) 좌표를 검색합니다. 
-    날씨 예보를 조회(tool_get_weather)하기 전에, LLM은 반드시 먼저 이 도구를 사용하여 타겟 지역의 위경도 좌표를 얻어야 합니다.
+    입력한 도시, 지역 또는 명소 이름의 정확한 위도(lat)와 경도(lon) 좌표 및 타임존을 검색하는 도구입니다.
     """
     try:
         # get_coordinates는 (lat, lon, name, country, timezone) 튜플을 반환합니다.
@@ -46,7 +45,7 @@ class WeatherArgs(BaseModel):
 @tool(args_schema=WeatherArgs)
 def tool_get_weather(lat: float, lon: float, end_date: str, timezone: str = "auto") -> Dict[str, Any]:
     """
-    특정 위도/경도 좌표의 날씨 예보(날씨 상태, 최고/최저 기온)를 확인합니다.
+    특정 위도(lat)와 경도(lon) 좌표를 기준으로 해당 날짜의 날씨 상태 및 최고/최저 기온을 조회하는 도구입니다.
     """
     try:
         # LLM이 전달한 날짜 문자열을 datetime.date 객체로 변환
