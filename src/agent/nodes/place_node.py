@@ -24,88 +24,128 @@ def _place_counts(trip_nights: int) -> tuple[int, int]:
 # ──────────────────────────────────────────────
 
 def _build_queries(
-    dest: str, trip_nights: int, is_rainy: bool, domestic: bool
+    dest: str, is_rainy: bool, domestic: bool
 ) -> tuple[list[str], list[str]]:
-    """(맛집 쿼리 목록, 명소 쿼리 목록) 반환 — 최대 6/10개."""
-    n = max(1, trip_nights)
-
+    """(맛집 쿼리 목록, 명소 쿼리 목록) 반환 — 항상 전체 풀 반환, 박수와 무관하게 다양한 후보 확보."""
     if domestic:
         r_pool = [
-            f"{dest} 맛집 추천",
-            f"{dest} 카페 브런치",
-            f"{dest} 저녁 식당",
-            f"{dest} 향토 음식 로컬 맛집",
-            f"{dest} 해산물 고기 맛집",
-            f"{dest} 고급 레스토랑 파인다이닝",
+            # 끼니별
+            f"{dest} 아침 식사 조식 카페",
+            f"{dest} 점심 맛집 로컬 식당",
+            f"{dest} 저녁 식당 분위기 좋은",
+            # 장르별
+            f"{dest} 한식 향토 음식 노포",
+            f"{dest} 해산물 횟집 생선구이",
+            f"{dest} 고기 구이 삼겹살 갈비",
+            f"{dest} 일식 라멘 스시",
+            f"{dest} 양식 파스타 피자",
+            # 분위기/테마별
+            f"{dest} 감성 카페 브런치",
+            f"{dest} 루프탑 뷰 카페",
+            f"{dest} 파인다이닝 고급 레스토랑",
+            f"{dest} 로컬 시장 길거리 음식",
         ]
         a_pool_clear = [
-            f"{dest} 관광명소",
-            f"{dest} 자연 경관 뷰포인트",
-            f"{dest} 야경 명소",
+            # 자연·경관
+            f"{dest} 자연 경관 뷰포인트 전망대",
+            f"{dest} 해변 바다 산책",
+            f"{dest} 공원 산책로 피크닉",
+            f"{dest} 야경 명소 야간 산책",
+            # 문화·역사
             f"{dest} 박물관 미술관",
-            f"{dest} 쇼핑 거리 전통시장",
             f"{dest} 역사 유적지 문화재",
-            f"{dest} 체험 액티비티",
-            f"{dest} 공원 산책로",
+            f"{dest} 전통 마을 한옥",
+            # 쇼핑·시장
+            f"{dest} 쇼핑 거리 상점가",
+            f"{dest} 전통시장 재래시장",
+            # 체험·액티비티
+            f"{dest} 체험 액티비티 투어",
             f"{dest} 테마파크 놀이공원",
-            f"{dest} 온천 스파",
+            f"{dest} 온천 스파 힐링",
         ]
         a_pool_rainy = [
+            # 실내 문화
             f"{dest} 실내 박물관 미술관",
-            f"{dest} 실내 카페 디저트",
+            f"{dest} 실내 전시회 갤러리",
+            f"{dest} 전통 문화 체험관",
+            # 실내 휴식
+            f"{dest} 실내 카페 디저트 베이커리",
+            f"{dest} 찜질방 스파 온천",
+            f"{dest} 책방 독립서점",
+            # 실내 쇼핑·오락
             f"{dest} 쇼핑몰 백화점",
             f"{dest} 수족관 아쿠아리움",
-            f"{dest} 실내 전시회 갤러리",
             f"{dest} 영화관 공연장 뮤지컬",
-            f"{dest} 찜질방 스파 온천",
-            f"{dest} 실내 체험관",
-            f"{dest} 실내 놀이시설",
-            f"{dest} 전통 문화 체험관",
+            f"{dest} 실내 체험관 방탈출",
+            # 실내 먹거리
+            f"{dest} 실내 마켓 푸드홀",
+            f"{dest} 루프탑 실내 뷰 명소",
         ]
     else:
         r_pool = [
-            f"{dest} best local restaurants",
-            f"{dest} cafes brunch spots",
-            f"{dest} dinner restaurants",
-            f"{dest} local street food",
+            # by meal
+            f"{dest} breakfast cafes brunch spots",
+            f"{dest} lunch local restaurants",
+            f"{dest} dinner restaurants romantic atmosphere",
+            # by cuisine
+            f"{dest} local street food market",
             f"{dest} seafood traditional cuisine",
-            f"{dest} fine dining rooftop",
+            f"{dest} fine dining rooftop restaurant",
+            f"{dest} vegetarian vegan cafe",
+            f"{dest} bakery dessert sweet shop",
+            # by vibe
+            f"{dest} hidden gem local favorite restaurant",
+            f"{dest} rooftop bar food",
+            f"{dest} night market food stalls",
+            f"{dest} cooking class food experience",
         ]
         a_pool_clear = [
-            f"{dest} tourist attractions",
-            f"{dest} historical landmarks",
-            f"{dest} parks gardens viewpoints",
-            f"{dest} local neighborhoods walking",
-            f"{dest} markets bazaars",
+            # nature & scenery
+            f"{dest} scenic viewpoints sunrise sunset",
+            f"{dest} parks gardens nature walk",
+            f"{dest} beaches waterfront promenade",
+            f"{dest} mountain hiking trails",
+            # culture & history
+            f"{dest} historical landmarks monuments",
+            f"{dest} museums cultural heritage",
+            f"{dest} religious sites temples shrines",
+            f"{dest} traditional neighborhoods old town",
+            # shopping & local life
+            f"{dest} local markets bazaars",
+            f"{dest} shopping districts boutiques",
+            # experiences & entertainment
             f"{dest} outdoor adventure activities",
-            f"{dest} beaches waterfront",
-            f"{dest} religious sites temples",
-            f"{dest} art districts",
+            f"{dest} art districts galleries street art",
             f"{dest} nightlife entertainment",
         ]
         a_pool_rainy = [
+            # indoor culture
             f"{dest} museums",
-            f"{dest} art galleries",
-            f"{dest} indoor shopping malls",
-            f"{dest} aquarium",
-            f"{dest} theaters concert halls",
+            f"{dest} art galleries exhibitions",
+            f"{dest} historical indoor sites palace",
+            # indoor leisure
             f"{dest} spas wellness centers",
-            f"{dest} indoor markets",
-            f"{dest} historical indoor sites",
-            f"{dest} escape rooms entertainment",
+            f"{dest} aquarium indoor attractions",
+            f"{dest} theaters concert halls",
+            # indoor shopping & food
+            f"{dest} indoor shopping malls",
+            f"{dest} indoor markets food halls",
+            f"{dest} cafes bookshops cozy",
+            # experiences
             f"{dest} cooking classes workshops",
+            f"{dest} escape rooms entertainment center",
+            f"{dest} unique indoor experiences",
         ]
 
-    r_count, a_count = _place_counts(n)
     a_pool = a_pool_rainy if is_rainy else a_pool_clear
-    return r_pool[:r_count], a_pool[:a_count]
+    return r_pool, a_pool
 
 
 # ──────────────────────────────────────────────
 # 병렬 API 호출
 # ──────────────────────────────────────────────
 
-def _search_parallel_naver(queries: list[str], display: int = 3) -> list[dict]:
+def _search_parallel_naver(queries: list[str], display: int = 5) -> list[dict]:
     """Naver Local API 병렬 호출 → 중복 제거된 후보 목록."""
     from src.tourist.naver_local import search_local
 
@@ -195,15 +235,18 @@ def _curate_with_llm(
         )
 
     system = SystemMessage(content=(
-        "너는 전문 여행 큐레이터야. 제공된 장소 후보 목록에서 여행 일정에 최적인 장소를 선별해줘.\n"
-        "선별 기준:\n"
-        "1. 박수와 동선을 고려해 딱 맞는 수만 선택 (더 많지도 적지도 않게)\n"
-        "2. 카테고리 중복 최소화 (같은 유형 장소가 연속으로 나오지 않도록)\n"
-        "3. 날씨 지시에 따라 실내/실외 비율 조절\n"
-        "4. 숙소에서 이동이 효율적인 동선 우선\n\n"
-        "반드시 아래 JSON 형식만 출력 (설명 없이):\n"
-        '{"restaurants":[{"title":"...","address":"...","category":"...","description":"한 줄 소개"}],'
-        '"attractions":[{"title":"...","address":"...","category":"...","description":"한 줄 소개"}]}'
+        "너는 전문 여행 큐레이터야. 제공된 후보 목록에서 여행 일정에 최적인 장소를 선별해줘.\n\n"
+        "【필수 선별 원칙】\n"
+        "1. 지정된 수를 정확히 선택 — 더 많지도 적지도 않게.\n"
+        "2. 다양성 최우선 — 같은 카테고리(예: 카페, 해산물) 연속 금지. "
+        "맛집은 한식·양식·카페·간식 등 장르를 섞어야 함. "
+        "명소는 자연·문화·체험·쇼핑·야경 등 테마를 골고루 분산.\n"
+        "3. 중복 배제 — 이름이 유사하거나 같은 건물/복합시설에 있는 장소는 1곳만 선택.\n"
+        "4. 날씨 지시 준수 — 비/눈이면 실내 명소 우선, 맑으면 실내·실외 균형.\n"
+        "5. 동선 효율 — 숙소 기준으로 이동 동선이 효율적인 장소 우선.\n\n"
+        "반드시 아래 JSON 형식만 출력 (설명·마크다운 없이):\n"
+        '{"restaurants":[{"title":"...","address":"...","category":"장르(예:한식/카페/양식)","description":"한 줄 소개"}],'
+        '"attractions":[{"title":"...","address":"...","category":"테마(예:자연/문화/쇼핑/체험)","description":"한 줄 소개"}]}'
     ))
 
     user_content = (
@@ -267,7 +310,7 @@ def make_place_node(llm):
         domestic = iata_is_domestic(iata) if iata else False
 
         r_count, a_count = _place_counts(trip_nights)
-        r_queries, a_queries = _build_queries(dest, trip_nights, is_rainy, domestic)
+        r_queries, a_queries = _build_queries(dest, is_rainy, domestic)
 
         api_label = "국내→Naver" if domestic else "해외→Google Places"
         weather_label = "☔ 실내 우선" if is_rainy else "☀ 실내·실외 균형"
@@ -277,8 +320,8 @@ def make_place_node(llm):
         # API 병렬 검색
         try:
             if domestic:
-                raw_r = _search_parallel_naver(r_queries, display=3)
-                raw_a = _search_parallel_naver(a_queries, display=3)
+                raw_r = _search_parallel_naver(r_queries)
+                raw_a = _search_parallel_naver(a_queries)
             else:
                 raw_r = _search_parallel_google(r_queries)
                 raw_a = _search_parallel_google(a_queries)
