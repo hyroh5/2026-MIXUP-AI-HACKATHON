@@ -42,42 +42,7 @@
 
 ## 2. 시스템 아키텍처
 
-```
-사용자 (채팅 UI)
-       │
-       ▼
-┌─────────────────────────────────┐
-│   Frontend  (TanStack Start)    │
-│   React 19 · Tailwind · shadcn  │
-└───────────────┬─────────────────┘
-                │ REST / SSE
-                ▼
-┌─────────────────────────────────┐
-│   Backend  (FastAPI)            │
-│   /api/plan/start               │
-│   /api/plan/resume              │
-│   /api/plan/resume/stream  ◄── SSE 실시간 스트리밍
-│   /api/plan/refine              │
-└───────────────┬─────────────────┘
-                │
-                ▼
-┌─────────────────────────────────────────────────────┐
-│   LangGraph Agent  (MemorySaver checkpointer)        │
-│                                                      │
-│  intent_router → date_compute ─┬→ date_select        │
-│                                └→ weather             │
-│                   weather → hotel_prefs (interrupt)  │
-│                           → hotel_compute            │
-│                           ─┬→ hotel_select (interrupt)│
-│                            └→ place → synthesizer    │
-└─────────────────────────────────────────────────────┘
-                │
-    ┌───────────┼───────────────┐
-    ▼           ▼               ▼
-SerpAPI    Open-Meteo     Google Places
-(항공·숙소)  (날씨)       / Naver Local
-                          (장소 검색)
-```
+[여기에 이미지 삽입]
 
 ---
 
@@ -85,19 +50,9 @@ SerpAPI    Open-Meteo     Google Places
 
 ### 노드 구성 (9개)
 
-```
-START
-  └→ [1] intent_router      : LLM으로 자연어 파싱 → TravelIntent 구조화
-       └→ [2] date_compute   : 날짜 미정 시 항공가격+날씨 점수로 후보 생성
-            ├→ [3] date_select  ← interrupt ① (날짜 선택)
-            └→ [4] weather    : Open-Meteo 날씨 요약
-                 └→ [5] hotel_prefs  ← interrupt ② (숙소 조건 선택)
-                      └→ [6] hotel_compute : SerpAPI 호텔 검색
-                           ├→ [7] hotel_select  ← interrupt ③ (숙소 선택)
-                           └→ [8] place    : 장소 큐레이션 + 동선 최적화
-                                └→ [9] synthesizer : Solar Pro3 일정 생성
-                                     └→ END
-```
+[여기에 이미지 삽입]
+
+이 AI 에이전트는 LangGraph 환경에서 작동하며, 목적에 따라 다양한 노드(Node) 및 엣지(Edge)로 구성되어 있습니다. `__start__`에서 시작하여 각 노드를 순차적으로 거치며, 특정 조건 혹은 사용자 개입(HITL) 필요 여부에 따라 `date_select`나 `hotel_select`와 같은 노드로 진입하거나 이를 건너뛰는(bypass/점선 엣지) 형태의 워크플로우를 가집니다. 이를 통해 유연하고 최적화된 과정을 거쳐 최종 `__end__`에 도달하게 됩니다.
 
 ### 각 노드 설명
 
