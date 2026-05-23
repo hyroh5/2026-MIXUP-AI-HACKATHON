@@ -188,32 +188,39 @@ hotel_select 완료
 
 ## 5. 기술 스택
 
-### Backend
+해당 프로젝트는 **Python/FastAPI** 기반의 백엔드(AI Agent 특화)와 **React/TanStack** 기반의 프론트엔드로 구성되어 있습니다.
 
-| 분류 | 기술 |
-|------|------|
-| 프레임워크 | FastAPI 0.136+ |
-| AI 오케스트레이션 | LangGraph 1.2+ (MemorySaver checkpointer) |
-| LLM | Solar Pro3 (Upstage) via `langchain-upstage` |
-| 날씨 | Open-Meteo API (API 키 불필요) |
-| 항공권 | SerpAPI Google Flights |
-| 호텔 | SerpAPI Google Hotels |
-| 장소 검색 | Google Places API + Naver Local Search API |
-| 패키지 관리 | uv / pyproject.toml |
-| 서버 | Uvicorn (ASGI) |
+### 🧠 AI & Agent (Backend Core)
+- **LLM Provider**: `Upstage` (`langchain-upstage`) - 한국어 처리에 특화된 Solar LLM 기반 추론
+- **Agent Framework**: `LangGraph` (`langgraph`) - 복잡한 의사결정(Intent Router, 최적화 노드 등) 및 순환(Cyclic) 그래프 형태의 워크플로우 구축
+- **LLM Orchestration**: `LangChain Core` (`langchain-core`) - 상태(State) 관리 및 도구(Tool) 바인딩
+- **Observability**: `LangSmith` (`langsmith`) - LLM 로그 추적 및 프롬프트 최적화
 
-### Frontend
+### ⚙️ Backend (API Server)
+- **Language**: `Python 3.10+`
+- **Web Framework**: `FastAPI` (`fastapi`) - 높은 속도와 비동기 처리에 강력한 API 서버
+- **ASGI Server**: `Uvicorn` (`uvicorn[standard]`)
+- **Package / Env Manager**: `uv` (빠르고 안정적인 의존성 및 가상환경 관리)
+- **HTTP Client**: `requests` - 서드파티 API 통신
+- **Streaming**: `sse-starlette` - AI 응답의 실시간 스트리밍(SSE) 처리
 
-| 분류 | 기술 |
-|------|------|
-| 프레임워크 | TanStack Start (React 19, SSR) |
-| 빌드 | Vite 7 |
-| 스타일 | Tailwind CSS v4 |
-| UI 컴포넌트 | shadcn/ui (Radix UI) |
-| 아이콘 | Lucide React |
-| 마크다운 | react-markdown + remark-gfm |
-| HTTP | fetch API (SSE 포함) |
-| 언어 | TypeScript 5.8 |
+### 🌐 Frontend (Web Application)
+- **Framework**: `React 19`, `TypeScript`
+- **Meta-Framework & Routing**: `TanStack Start`, `TanStack Router` - SSR/CSR 기반의 강력하고 타입 안정성이 보장된 라우팅
+- **State Management**: `TanStack Query` (React Query) - 서버 데이터 페칭 및 캐싱
+- **Build Tool**: `Vite` (+ Cloudflare Vite Plugin)
+- **Styling**: `Tailwind CSS v4`
+- **UI Components**: `shadcn/ui` (under the hood: `Radix UI`) - 유연하고 접근성 높은 UI 컴포넌트 사용
+- **Icons & Visualization**: `Lucide React` (아이콘), `Recharts` (차트 데이터 시각화)
+- **Markdown Rendering**: `react-markdown`, `remark-gfm` - AI가 생성한 마크다운 형태의 여행 계획 렌더링
+
+### 🔌 External APIs & Tools
+- **날씨 (Weather)**: `Open-Meteo API` (과거 기후 리서치 및 장단기 예보, API 키 불필요)
+- **장소 및 명소 (Tourist)**:
+  - `Google Places API` (해외 식당/카페/관광명소 검색)
+  - `Naver Local API` (국내 장소 검색 최적화)
+- **항공/교통 (Transport)**: `IATA API` 활용 최저가 항공권 탐색 및 운항 정보 데이터
+- **숙박 (Hotel)**: 내부 호텔/숙소 검색 연동
 
 ---
 
