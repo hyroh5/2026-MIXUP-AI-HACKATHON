@@ -47,7 +47,8 @@ def search_google_hotels(api_key: str, request: HotelSearchRequest) -> HotelSear
     }
     for key, value in optional.items():
         if value is not None:
-            params[key] = value
+            # requests가 Python bool을 "True"/"False"로 직렬화하므로 소문자로 변환
+            params[key] = str(value).lower() if isinstance(value, bool) else value
 
     response = requests.get(API_URL, params=params, timeout=30)
     response.raise_for_status()

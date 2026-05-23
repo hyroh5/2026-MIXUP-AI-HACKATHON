@@ -168,8 +168,15 @@ def search_hotel_candidates(
     free_cancellation: bool = prefs.get("free_cancellation", False)
     vacation_rentals: bool = prefs.get("vacation_rentals", False)
 
-    hotel_class_str = ",".join(str(c) for c in hotel_class_list) if hotel_class_list else None
-    amenities_str = ",".join(str(a) for a in amenities_list) if amenities_list else None
+    # vacation_rentals 모드에서는 hotel_class / amenities / rating 필터가
+    # SerpAPI 400 에러를 유발하므로 제거한다
+    if vacation_rentals:
+        hotel_class_str = None
+        amenities_str = None
+        min_rating = None
+    else:
+        hotel_class_str = ",".join(str(c) for c in hotel_class_list) if hotel_class_list else None
+        amenities_str = ",".join(str(a) for a in amenities_list) if amenities_list else None
 
     try:
         req = HotelSearchRequest(

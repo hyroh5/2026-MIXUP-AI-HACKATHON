@@ -45,3 +45,4 @@ class AgentState(TypedDict):
 
     # 6. Synthesizer 출력
     final_report: str
+    refinement_feedback: str  # 사용자 일정 수정 피드백 (refine 시에만 채워짐)

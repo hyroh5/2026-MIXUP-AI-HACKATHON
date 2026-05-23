@@ -72,9 +72,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "AI 여행 플래너" },
-      { name: "description", content: "채팅 한 번으로 날짜·숙소·동선·예산까지 자동 설계되는 AI 여행 플래너" },
-      { property: "og:title", content: "AI 여행 플래너" },
+      { title: "Global Travel Agent ✈️" },
+      { name: "description", content: "자연어 한 문장으로 완성하는 AI 여행 플래너 — 날짜·숙소·동선·예산까지 자동 설계" },
+      { property: "og:title", content: "Global Travel Agent ✈️" },
       { property: "og:description", content: "채팅으로 완성되는 맞춤 여행 일정" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

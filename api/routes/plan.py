@@ -1,5 +1,6 @@
 import asyncio
 import json
+import threading
 import uuid
 from typing import AsyncGenerator
 
@@ -8,8 +9,9 @@ from fastapi.responses import StreamingResponse
 from langchain_core.messages import HumanMessage
 from langgraph.types import Command
 
-from api.schemas import PlanRequest, PlanResponse, ResumeRequest, StartPlanResponse
+from api.schemas import PlanRequest, PlanResponse, ResumeRequest, RefineRequest, StartPlanResponse
 from src.agent import build_graph
+from src.agent.progress import register as progress_register, set_run_id, unregister as progress_unregister
 
 router = APIRouter()
 
@@ -41,6 +43,7 @@ def _initial_state(user_msg: str) -> dict:
         "attractions": [],
         "route_note": "",
         "final_report": "",
+        "refinement_feedback": "",
     }
 
 
@@ -148,6 +151,96 @@ async def resume_plan(req: ResumeRequest) -> StartPlanResponse:
         thread_id=req.thread_id,
         phase="done",
         result=_build_plan_response(result),
+    )
+
+
+@router.post("/plan/refine", response_model=PlanResponse)
+async def refine_plan(req: RefineRequest) -> PlanResponse:
+    """기존 thread의 state를 읽어 synthesizer만 피드백과 함께 재실행한다."""
+    from fastapi import HTTPException
+    from src.agent.llm import get_llm
+    from src.agent.nodes import make_synthesizer_node
+
+    app = _get_app()
+    config = {"configurable": {"thread_id": req.thread_id}}
+
+    snapshot = app.get_state(config)
+    if not snapshot or not snapshot.values:
+        raise HTTPException(status_code=404, detail="Thread not found or expired")
+
+    current_state = dict(snapshot.values)
+    current_state["refinement_feedback"] = req.feedback
+
+    llm = get_llm(model="solar-pro3", temperature=0.7)
+    synth = make_synthesizer_node(llm)
+
+    result = await asyncio.to_thread(synth, current_state)
+    merged = {**current_state, **result}
+    return _build_plan_response(merged)
+
+
+@router.post("/plan/resume/stream")
+async def resume_plan_stream(req: ResumeRequest) -> StreamingResponse:
+    """hotel 선택 이후 나머지 노드(place, synth)를 실행하며 진행 상황을 SSE로 스트리밍한다."""
+
+    async def event_gen() -> AsyncGenerator[str, None]:
+        run_id = str(uuid.uuid4())
+        progress_q = progress_register(run_id)
+        app = _get_app()
+        config = {"configurable": {"thread_id": req.thread_id}}
+        result_box: dict = {}
+
+        def _run() -> None:
+            set_run_id(run_id)
+            try:
+                result_box["result"] = app.invoke(Command(resume=req.choice), config)
+            except Exception as e:
+                result_box["error"] = str(e)
+            finally:
+                progress_q.put_nowait({"type": "_done"})
+
+        t = threading.Thread(target=_run, daemon=True)
+        t.start()
+
+        loop = asyncio.get_event_loop()
+        while True:
+            try:
+                event = await loop.run_in_executor(None, lambda: progress_q.get(timeout=180))
+            except Exception:
+                break
+            if event["type"] == "_done":
+                break
+            yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+
+        progress_unregister(run_id)
+
+        if "error" in result_box:
+            yield f"data: {json.dumps({'type': 'error', 'message': result_box['error']})}\n\n"
+        elif "result" in result_box:
+            interrupt_val = _check_interrupt(app, config)
+            if interrupt_val:
+                interrupt_type = interrupt_val.get("type", "")
+                resp = StartPlanResponse(
+                    thread_id=req.thread_id,
+                    phase=interrupt_type,
+                    question=interrupt_val.get("question", ""),
+                    candidates=interrupt_val.get("candidates"),
+                    schema=interrupt_val.get("schema"),
+                )
+            else:
+                resp = StartPlanResponse(
+                    thread_id=req.thread_id,
+                    phase="done",
+                    result=_build_plan_response(result_box["result"]),
+                )
+            yield f"data: {json.dumps({'type': 'final', **resp.model_dump()}, ensure_ascii=False)}\n\n"
+
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(
+        event_gen(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
 
 

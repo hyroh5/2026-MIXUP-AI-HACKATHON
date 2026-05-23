@@ -1,6 +1,7 @@
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from src.agent.state import AgentState
+from src.agent.progress import emit
 
 
 def make_synthesizer_node(llm):
@@ -26,6 +27,14 @@ def make_synthesizer_node(llm):
             desc = f" — {a['description']}" if a.get("description") else ""
             places_text += f"명소: {a['title']} | {a['address']} | {a['category']}{desc}\n"
 
+        feedback = state.get("refinement_feedback", "")
+        feedback_instruction = (
+            f"\n\n⚠️ [사용자 수정 요청 — 반드시 반영]\n"
+            f"{feedback}\n"
+            f"위 요청을 일정에 적극 반영하세요. 단, 아래 [수집된 장소] 목록 내에서만 조정하세요."
+            if feedback else ""
+        )
+
         system = SystemMessage(content=(
             "너는 전문 여행 플래너야. "
             "[수집된 장소] 목록에 있는 장소만 사용해서 동선이 효율적인 여행 일정을 짜줘. "
@@ -43,6 +52,7 @@ def make_synthesizer_node(llm):
             "- 예산 현황과 날씨 정보를 일정 상단에 ## 섹션으로 포함.\n"
             "- 날별로 ## Day 1, ## Day 2 형식으로 구분.\n"
             "- ASCII 박스(+--)나 공백 정렬 표는 절대 사용하지 마. GFM 파이프 표만 사용."
+            + feedback_instruction
         ))
 
         flight_cost = intent.get("flight_cost", 0)
@@ -66,7 +76,9 @@ def make_synthesizer_node(llm):
         )
 
         print(f"\n📝 [5/5] 일정 생성 중 — Solar Pro3 호출...")
+        emit(f"📝 최종 일정 생성 중 (Solar Pro3 LLM 호출)…")
         response = llm.invoke([system, HumanMessage(content=user_content)])
+        emit(f"✅ 일정 생성 완료!")
         print("  ✓ 완료\n")
         return {"final_report": response.content}
 
