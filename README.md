@@ -33,19 +33,23 @@
 ## 💻 DEMO (서비스 시연)
 
 ### 1. 프롬프트 입력 및 의도 추출 (Intent Router)
-[여기에 이미지 삽입]
+<img width="1200" height="722" alt="1_의도분석추출" src="https://github.com/user-attachments/assets/fc1ae754-bfc9-49f3-b72f-046cb67c5180" />
+
 사용자의 자연어 입력 한 줄을 `intent_router` 노드가 분석하여 사용자의 핵심 의도를 추출합니다. 이때 예산, 여행 인원 등 플래닝에 필수적인 정보가 누락되었을 경우 에이전트가 역으로 사용자에게 질문하여 필요한 데이터를 수집합니다.
 
 ### 2. 비행편·기후 분석을 통한 최적 날짜 추천 및 숙소 선호 파악
-[여기에 이미지 삽입]
+<img width="1200" height="722" alt="2_휴먼인더루프" src="https://github.com/user-attachments/assets/007699de-2506-4980-ac32-38aaf76b4a5a" />
+
 기상 데이터(Open-Meteo)와 실시간 항공권 검색 결과를 교차 분석(`date_compute` 노드)하여, 가격과 날씨 점수가 가장 좋은 최적의 날짜 후보들을 추천합니다. 사용자가 날짜를 확정(HITL 개입)하면, 이어서 원하는 숙소 유형과 편의시설 선호도를 추가로 입력받습니다.
 
 ### 3. 맞춤 숙소 추천 및 사용자 선택 반영
-[여기에 이미지 삽입]
+<img width="1200" height="722" alt="3_추천결과" src="https://github.com/user-attachments/assets/40e9543b-c9bb-41a5-ba79-94326f0cb47c" />
+
 수집된 총 예산에서 왕복 항공권 비용을 차감한 잔여 예산과 승객 수, 그리고 방금 입력받은 숙소 선호 조건을 바탕으로 `hotel_compute` 노드가 실시간으로 숙소를 검색합니다. 사용자는 제시된 맞춤형 호텔 후보 호텔 카드들 중에서 하나를 직접 선택하여 여정을 구체화합니다.
 
 ### 4. 동선 최적화 및 상황별 최종 일정표 생성
-[여기에 이미지 삽입]
+<img width="1200" height="722" alt="4_최종 결과" src="https://github.com/user-attachments/assets/80761fe4-40de-41a4-86f8-1cfa1400627d" />
+
 `place` 노드가 맛집/명소를 탐색 후 TSP 근사 알고리즘으로 동선을 최적화하면, 최종적으로 `synthesizer` 노드가 완성된 마크다운 일정표를 제공합니다. 우천 시 실내 여행 일정으로 경로를 유연하게 대체하는 등, 날씨 컨텍스트까지 반영한 에이전트의 상황 대처 능력을 반영하였습니다.
 
 ---
@@ -86,7 +90,8 @@
 
 ## 2. 시스템 아키텍처
 
-[여기에 이미지 삽입]
+<img width="1167" height="554" alt="흐름도" src="https://github.com/user-attachments/assets/9fc9a49f-b223-4cc9-84d8-8ab9df0ab5af" />
+
 
 ---
 
@@ -94,7 +99,8 @@
 
 ### 노드 구성 (9개)
 
-[여기에 이미지 삽입]
+<img width="188" height="1027" alt="그래프구조" src="https://github.com/user-attachments/assets/deaa04c9-2674-4683-8639-13292b41e799" />
+
 
 이 AI 에이전트는 LangGraph 환경에서 작동하며, 목적에 따라 다양한 노드(Node) 및 엣지(Edge)로 구성되어 있습니다. `__start__`에서 시작하여 각 노드를 순차적으로 거치며, 특정 조건 혹은 사용자 개입(HITL) 필요 여부에 따라 `date_select`나 `hotel_select`와 같은 노드로 진입하거나 이를 건너뛰는(bypass/점선 엣지) 형태의 워크플로우를 가집니다. 이를 통해 유연하고 최적화된 과정을 거쳐 최종 `__end__`에 도달하게 됩니다.
 
