@@ -8,6 +8,9 @@
 
 ## 🏆 2026 MIXUP AI HACKATHON
 
+<img width="1052" height="1488" alt="포스터" src="https://github.com/user-attachments/assets/be68bbca-921e-493b-bc83-f0c3d9deaba2" />
+
+
 본 프로젝트는 **BITAmin, Prometheus, Tobig’s가 주최**하고 **Upstage(업스테이지)가 주관**하는 [2026 MIXUP AI HACKATHON] 출품작입니다. (대회 기간: 2026.05.22 ~ 05.23, 경기창조경제혁신센터 판교 창업존)
 
 ### 💡 프로젝트 시작 배경 (Why?)
