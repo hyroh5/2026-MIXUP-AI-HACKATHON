@@ -104,14 +104,35 @@ START
 | # | 노드 | 역할 | 외부 API |
 |---|------|------|---------|
 | 1 | **intent_router** | 자연어 → `TravelIntent` 파싱 (목적지, 날짜, 예산, 인원 등) | Solar Pro3 LLM |
-| 2 | **date_compute** | 날짜 미정 시 월별 항공가 + 날씨 분석 → 최적 일정 TOP 3 | SerpAPI Flights + Open-Meteo |
-| 3 | **date_select** | 사용자에게 날짜 후보 3개 제시 후 선택 대기 | — (interrupt) |
-| 4 | **weather** | 선택된 날짜의 날씨 예보 / 과거 통계 수집 | Open-Meteo |
+| 2 | **date_compute** | 항공권 + 날씨 교차 분석 (3가지 분기 처리) | Naver Flights GraphQL · SerpAPI Flights · Open-Meteo |
+| 3 | **date_select** | 사용자에게 날짜 후보 제시 후 선택 대기 (후보 없으면 자동 스킵) | — (interrupt) |
+| 4 | **weather** | 날씨 보완 조회 (date_compute에서 이미 계산됐으면 캐시 재사용) | Open-Meteo |
 | 5 | **hotel_prefs** | 정렬 기준·등급·편의시설 등 숙소 조건 수집 | — (interrupt) |
 | 6 | **hotel_compute** | 예산·선호 조건 반영 실시간 호텔 검색 | SerpAPI Hotels |
 | 7 | **hotel_select** | 호텔 후보 카드 제시 후 선택 대기 | — (interrupt) |
 | 8 | **place** | 맛집·명소 병렬 검색 → LLM 큐레이션 → 좌표 기반 동선 최적화 | Google Places + Naver Local |
 | 9 | **synthesizer** | 수집된 모든 정보로 GFM 마크다운 일정표 생성 | Solar Pro3 LLM |
+
+### date_compute 분기 상세
+
+```
+date_compute
+  ├─ 국내선 / IATA 코드 없음
+  │    └→ Open-Meteo 날씨만으로 후보 생성 (항공 조회 생략)
+  │
+  ├─ 날짜 확정 (date_fixed=True)
+  │    └→ SerpAPI Google Flights로 해당 날짜 항공편 직접 조회
+  │         + Open-Meteo 날씨 계산 → 1개 후보 반환
+  │
+  └─ 날짜 미정 (date_fixed=False)
+       └→ Naver Flights GraphQL (primary)으로 월별 최저가 최대 50건 수집
+            → SERPAPI Google Flights (fallback, 시각 정보 보완)
+            → 가격·경유·출발시간 사전 점수 산출 → 상위 20건 선별
+            → Open-Meteo 날씨 병렬 조회 (ThreadPoolExecutor, 최대 8개 동시)
+            → 항공 점수 + 날씨 점수 종합 → TOP 10 후보 반환
+```
+
+**weather 노드는 중복 조회를 하지 않습니다.** `date_compute`가 이미 날씨를 state에 저장했으면 weather 노드는 재사용하고, 날씨가 없는 경우에만 Open-Meteo를 새로 호출합니다.
 
 ### 예산 흐름
 
