@@ -86,6 +86,88 @@ export async function resumePlan(threadId: string, choice: string): Promise<Star
 }
 
 /**
+ * 호텔 선택 이후 place·synth 노드 진행 상황을 SSE로 스트리밍한다.
+ * - onProgress: 노드 내부 진행 메시지
+ * - onDone: 최종 결과 (StartPlanResult)
+ * 반환값: 스트림 취소용 AbortController
+ */
+export function resumePlanStream(
+  threadId: string,
+  choice: string,
+  onProgress: (message: string) => void,
+  onDone: (result: StartPlanResult) => void,
+  onError: (err: string) => void,
+): AbortController {
+  const ctrl = new AbortController();
+
+  (async () => {
+    const res = await fetch(`${API_BASE}/api/plan/resume/stream`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ thread_id: threadId, choice }),
+      signal: ctrl.signal,
+    });
+
+    if (!res.ok || !res.body) {
+      onError(`API error ${res.status}`);
+      return;
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        const raw = line.slice(6).trim();
+        if (raw === "[DONE]") return;
+
+        try {
+          const payload = JSON.parse(raw) as {
+            type: string;
+            message?: string;
+            thread_id?: string;
+            phase?: string;
+            result?: PlanResult;
+            candidates?: DateCandidate[] | HotelCandidate[];
+            schema?: HotelPrefsSection[];
+          };
+          if (payload.type === "progress" && payload.message) {
+            onProgress(payload.message);
+          } else if (payload.type === "final") {
+            onDone({
+              thread_id: payload.thread_id ?? threadId,
+              phase: (payload.phase ?? "done") as StartPlanResult["phase"],
+              result: payload.result,
+              candidates: payload.candidates,
+              schema: payload.schema,
+            });
+          } else if (payload.type === "error") {
+            onError(payload.message ?? "알 수 없는 오류");
+          }
+        } catch {
+          // 파싱 실패 무시
+        }
+      }
+    }
+  })().catch((e: unknown) => {
+    if (e instanceof Error && e.name !== "AbortError") {
+      onError(e.message);
+    }
+  });
+
+  return ctrl;
+}
+
+/**
  * SSE 스트림으로 여행 계획을 요청한다.
  * - onStep: 각 파이프라인 단계 이벤트 (step, status)
  * - onDone: synth 완료 시 최종 결과
@@ -154,6 +236,17 @@ export function streamPlan(
   });
 
   return ctrl;
+}
+
+/** 기존 thread의 synthesizer를 피드백과 함께 재실행해 수정된 일정을 반환한다 */
+export async function refinePlan(threadId: string, feedback: string): Promise<PlanResult> {
+  const res = await fetch(`${API_BASE}/api/plan/refine`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ thread_id: threadId, feedback }),
+  });
+  if (!res.ok) throw new Error(`API error ${res.status}`);
+  return res.json() as Promise<PlanResult>;
 }
 
 /** 동기 POST — SSE 없이 최종 결과만 필요할 때 사용 */

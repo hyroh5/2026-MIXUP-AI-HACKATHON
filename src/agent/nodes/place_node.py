@@ -5,6 +5,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from src.agent.state import AgentState
+from src.agent.progress import emit
 from src.cheapest_date.iata import get_iata, is_domestic as iata_is_domestic
 
 
@@ -424,10 +425,12 @@ def make_place_node(llm):
         r_count, a_count = _place_counts(trip_nights)
         r_queries, a_queries = _build_queries(dest, is_rainy, domestic)
 
-        api_label = "국내→Naver" if domestic else "해외→Google Places"
+        api_label = "국내 (Naver)" if domestic else "해외 (Google Places)"
         weather_label = "☔ 실내 우선" if is_rainy else "☀ 실내·실외 균형"
         print(f"\n📍 [4/5] 장소 검색 중 — {dest} ({api_label}) | {trip_nights}박 | {weather_label}")
         print(f"  → 목표: 맛집 {r_count}곳 ({len(r_queries)}개 쿼리), 명소 {a_count}곳 ({len(a_queries)}개 쿼리)")
+        emit(f"📍 장소 검색 시작 — {dest} ({api_label}) · {weather_label}")
+        emit(f"📡 맛집 {len(r_queries)}개 쿼리 + 명소 {len(a_queries)}개 쿼리 병렬 조회 중…")
 
         # API 병렬 검색
         try:
@@ -438,12 +441,13 @@ def make_place_node(llm):
                 raw_r = _search_parallel_google(r_queries)
                 raw_a = _search_parallel_google(a_queries)
             print(f"  ✓ 수집된 후보: 맛집 {len(raw_r)}곳, 명소 {len(raw_a)}곳")
+            emit(f"✅ {api_label} 수집 완료 — 맛집 후보 {len(raw_r)}곳 · 명소 후보 {len(raw_a)}곳")
         except Exception as e:
             print(f"  ✗ API 검색 전체 실패 ({e}) → Mock 사용")
+            emit(f"⚠️ API 오류, 기본 데이터 사용")
             raw_r, raw_a = _mock_for(r_count, a_count)
 
         # LLM 큐레이션
-        # raw 좌표 인덱스: 제목 → (lat, lng)
         raw_coords: dict[str, tuple[float, float]] = {}
         for p in raw_r + raw_a:
             if p.get("lat") and p.get("lng"):
@@ -452,6 +456,7 @@ def make_place_node(llm):
         if raw_r or raw_a:
             try:
                 print(f"  → LLM 큐레이션 중...")
+                emit(f"🤖 LLM이 최적 장소 선별 중 (맛집 {r_count}곳 · 명소 {a_count}곳)…")
                 curated = _curate_with_llm(
                     llm, dest, trip_nights, is_rainy,
                     hotel_name, hotel_address,
@@ -460,20 +465,20 @@ def make_place_node(llm):
                 restaurants = curated.get("restaurants", [])[:r_count]
                 attractions = curated.get("attractions", [])[:a_count]
 
-                # 부족한 경우 raw로 보충
                 if len(restaurants) < r_count:
                     restaurants += raw_r[len(restaurants):r_count]
                 if len(attractions) < a_count:
                     attractions += raw_a[len(attractions):a_count]
 
+                emit(f"✅ 큐레이션 완료 — 맛집 {len(restaurants)}곳 · 명소 {len(attractions)}곳 선별")
             except Exception as e:
                 print(f"  ✗ LLM 큐레이션 실패 ({e}) → 수집 결과 직접 사용")
+                emit(f"⚠️ LLM 큐레이션 실패, 원본 결과 사용")
                 restaurants = raw_r[:r_count]
                 attractions = raw_a[:a_count]
         else:
             restaurants, attractions = _mock_for(r_count, a_count)
 
-        # LLM이 큐레이션한 장소에 원본 좌표를 복원
         for p in restaurants + attractions:
             if not p.get("lat"):
                 coords = raw_coords.get(p["title"])
@@ -485,12 +490,12 @@ def make_place_node(llm):
 
         # 위치 기반 경로 최적화
         print(f"  → 동선 최적화 중...")
+        emit(f"🗺 동선 최적화 중 (숙소 기준 최근접 이웃 알고리즘)…")
         hotel_coords = _get_hotel_coords(hotel_name, hotel_address, dest, domestic)
         if hotel_coords:
             h_lat, h_lng = hotel_coords
             print(f"  ✓ 호텔 좌표 확보: ({h_lat:.4f}, {h_lng:.4f})")
         else:
-            # 좌표 있는 장소들의 중심점을 출발지로 사용
             geo = [p for p in restaurants + attractions if p.get("lat") and p.get("lng")]
             if geo:
                 h_lat = sum(p["lat"] for p in geo) / len(geo)
@@ -504,8 +509,10 @@ def make_place_node(llm):
         if route_note:
             geo_count = sum(1 for p in restaurants + attractions if p.get("lat") and p.get("lng"))
             print(f"  ✓ 동선 계산 완료 ({geo_count}개 장소 좌표 반영)")
+            emit(f"✅ 동선 계산 완료 ({geo_count}개 장소 좌표 반영)")
         else:
             print(f"  ✗ 좌표 없음 → 동선 계산 생략")
+            emit(f"ℹ️ 좌표 정보 없음 — 동선 최적화 생략")
 
         return {"restaurants": restaurants, "attractions": attractions, "route_note": route_note}
 

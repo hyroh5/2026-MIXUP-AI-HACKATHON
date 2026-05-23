@@ -32,6 +32,11 @@ class ResumeRequest(BaseModel):
     choice: str  # "1", "2", "3"
 
 
+class RefineRequest(BaseModel):
+    thread_id: str
+    feedback: str
+
+
 class StartPlanResponse(BaseModel):
     thread_id: str
     phase: str  # "date_selection" | "hotel_prefs" | "hotel_selection" | "done"
