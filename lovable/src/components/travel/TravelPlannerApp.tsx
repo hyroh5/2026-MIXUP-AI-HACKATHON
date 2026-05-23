@@ -141,7 +141,7 @@ export default function TravelPlannerApp() {
     setPipelineStatus((s) => ({ ...s, orchestrator: "진행중" }));
 
     try {
-      const currentAnswers = answers; // 클로저 캡처
+      const currentAnswers = answers;
       const res = await startPlan({
         message: userQueryRef.current,
         budget: currentAnswers.budget,
