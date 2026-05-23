@@ -1,0 +1,32 @@
+# ── 환경 변수 ─────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+
+# ── Python / 백엔드 ────────────────────────────────────────
+.venv/
+venv/
+env/
+**/__pycache__/
+*.py[cod]
+*.pyo
+.ipynb_checkpoints/
+*.ipynb
+*.png
+
+# ── Node / 프론트엔드 ──────────────────────────────────────
+node_modules/
+dist/
+.output/
+.wrangler/
+*.tsbuildinfo
+
+# ── IDE ───────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ── OS ────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
